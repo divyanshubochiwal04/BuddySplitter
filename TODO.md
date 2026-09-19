@@ -129,10 +129,18 @@
     - `/summary`: Group summary breakdown reflecting remaining outstanding balances.
   - 38 unit test suites with 229 passing tests.
 
-- [ ] **Phase 9: Expense Management**
-  - View expense history (`/history`).
-  - Edit or delete mistakenly entered expenses.
-  - Permissions (only expense creator or admin can modify/delete).
+- [x] **Phase 9: Expense Management**
+  - Interactive expense history (`/expenses` command and `[📋 Expenses]` group button `action:expenses`).
+  - Active group scoping with deterministic pagination (5 items per page, `expense_date DESC, created_at DESC, id DESC`).
+  - Detailed expense view (`expm:v:<id>:<page>`) displaying description, amount, payer, creator, date, and per-participant breakdown (paise, percentages, shares).
+  - Strict domain-level authorization: only the creator or payer can edit or delete an expense; read-only access for other active group members.
+  - Soft-delete mechanism using `deleted_at: now()` with confirmation modal (`expm:dp:<id>:<page>`, `expm:dc:<id>:<page>`) and idempotent double-tap protection.
+  - Financial safety & repayment protection:
+    - If repayment activity exists involving an expense's payer or participants, financial edits and deletion are strictly blocked (`⚠️ This expense has repayment activity. It cannot be deleted because doing so would invalidate financial history.`).
+    - Description-only edits remain allowed even after repayment activity.
+  - Seamless editing: single-field description edit via conversational text input, and full financial edit reusing Phase 4/5 split engines (Equal, Custom, Percentage, Shares).
+  - Automatic balance and settlement recalculation: soft-deleted expenses are automatically excluded from active queries, instantly updating `/balance`, `/summary`, and `/settle` without manual balance patching.
+  - 42 unit and integration test suites with 268 passing tests.
 
 - [ ] **Phase 10: UX Polish**
   - Interactive Telegram inline keyboards for selecting participants and split types.

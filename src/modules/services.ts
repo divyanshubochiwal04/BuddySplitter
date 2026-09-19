@@ -25,7 +25,13 @@ export function createServices(repositories: Repositories): BotServices {
   return {
     userService: new UserService(repositories.users),
     groupService: new GroupService(repositories.groups, repositories.groupMembers),
-    expenseService: new ExpenseService(repositories.expenses, repositories.groupMembers),
+    expenseService: new ExpenseService(
+      repositories.expenses,
+      repositories.groupMembers,
+      repositories.settlements,
+      repositories.users,
+      repositories.groups
+    ),
     balanceService,
     settlementService: new SettlementService(
       balanceService,

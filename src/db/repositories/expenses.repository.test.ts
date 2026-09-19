@@ -16,6 +16,7 @@ function createMockClient() {
     single: vi.fn(),
     insert: vi.fn().mockReturnThis(),
     update: vi.fn().mockReturnThis(),
+    delete: vi.fn().mockReturnThis(),
   };
 
   const client = {
@@ -135,5 +136,85 @@ describe('ExpenseRepository', () => {
       expect.objectContaining({ deleted_at: expect.any(String) })
     );
     expect(result.deleted_at).toBeDefined();
+  });
+
+  it('counts active expenses excluding soft-deleted ones', async () => {
+    const { client, queryBuilder } = createMockClient();
+    queryBuilder.is.mockResolvedValueOnce({ count: 5, error: null });
+
+    const repo = new ExpenseRepository(client);
+    const count = await repo.countActiveByGroupId('grp-1');
+
+    expect(client.from).toHaveBeenCalledWith('expenses');
+    expect(queryBuilder.select).toHaveBeenCalledWith('*', { count: 'exact', head: true });
+    expect(queryBuilder.eq).toHaveBeenCalledWith('group_id', 'grp-1');
+    expect(queryBuilder.is).toHaveBeenCalledWith('deleted_at', null);
+    expect(count).toBe(5);
+  });
+
+  it('updates expense description', async () => {
+    const { client, queryBuilder } = createMockClient();
+    const updated = { id: 'exp-1', description: 'Updated Dinner' };
+    queryBuilder.single.mockResolvedValue({ data: updated, error: null });
+
+    const repo = new ExpenseRepository(client);
+    const result = await repo.updateExpenseDescription('exp-1', 'Updated Dinner');
+
+    expect(client.from).toHaveBeenCalledWith('expenses');
+    expect(queryBuilder.update).toHaveBeenCalledWith(
+      expect.objectContaining({ description: 'Updated Dinner' })
+    );
+    expect(result.description).toBe('Updated Dinner');
+  });
+
+  it('rejects updating expense description with empty string', async () => {
+    const { client } = createMockClient();
+    const repo = new ExpenseRepository(client);
+
+    await expect(repo.updateExpenseDescription('exp-1', '   ')).rejects.toThrow(ValidationError);
+  });
+
+  it('updates expense with new splits and validates totals', async () => {
+    const { client, queryBuilder } = createMockClient();
+    const updatedExpense = {
+      id: 'exp-1',
+      description: 'Dinner',
+      total_amount: 2000,
+    };
+    const updatedSplits = [
+      { id: 's-1', expense_id: 'exp-1', user_id: 'u-1', amount: 1000 },
+      { id: 's-2', expense_id: 'exp-1', user_id: 'u-2', amount: 1000 },
+    ];
+
+    queryBuilder.single.mockResolvedValue({ data: updatedExpense, error: null });
+    queryBuilder.delete = vi.fn().mockReturnThis();
+    queryBuilder.insert = vi.fn().mockReturnThis();
+    // Return inserted splits for second select call
+    queryBuilder.select
+      .mockReturnValueOnce(queryBuilder) // for update...select().single()
+      .mockResolvedValueOnce({ data: updatedSplits, error: null }); // for insert...select()
+
+    const repo = new ExpenseRepository(client);
+    const result = await repo.updateExpenseWithSplits(
+      'exp-1',
+      { total_amount: 2000 },
+      [
+        { user_id: 'u-1', amount: 1000, percentage: null, shares: null },
+        { user_id: 'u-2', amount: 1000, percentage: null, shares: null },
+      ]
+    );
+
+    expect(result.total_amount).toBe(2000);
+  });
+
+  it('rejects update if split amounts do not sum to total_amount', async () => {
+    const { client } = createMockClient();
+    const repo = new ExpenseRepository(client);
+
+    await expect(
+      repo.updateExpenseWithSplits('exp-1', { total_amount: 2000 }, [
+        { user_id: 'u-1', amount: 500, percentage: null, shares: null },
+      ])
+    ).rejects.toThrow(ValidationError);
   });
 });

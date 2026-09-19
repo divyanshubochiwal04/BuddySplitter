@@ -8,6 +8,10 @@ import {
   buildSplitTypeKeyboard,
   buildSharesKeyboard,
   buildExpenseConfirmationKeyboard,
+  buildExpenseHistoryKeyboard,
+  buildExpenseDetailsKeyboard,
+  buildDeleteConfirmationKeyboard,
+  buildEditMenuKeyboard,
 } from './index';
 
 describe('Keyboard Builders', () => {
@@ -42,7 +46,7 @@ describe('Keyboard Builders', () => {
       '💰 My Balance',
       '📊 Summary',
       '💸 Settle Up',
-      '📜 Expenses',
+      '📋 Expenses',
       '👥 Members',
     ]);
   });
@@ -109,5 +113,61 @@ describe('Keyboard Builders', () => {
     expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'exp:change_participants')).toBe(true);
     expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'exp:change_payer')).toBe(true);
     expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'exp:cancel')).toBe(true);
+  });
+
+  it('builds expense history keyboard with pagination controls', () => {
+    const expenses = [
+      {
+        id: 'exp-1',
+        description: 'Pizza Dinner',
+        totalAmount: 2000,
+        currency: 'INR',
+        paidByUserId: 'u1',
+        payerName: 'Alice',
+        expenseDate: '2026-09-19T10:00:00Z',
+        createdAt: '2026-09-19T10:00:00Z',
+      },
+    ];
+
+    const kb = buildExpenseHistoryKeyboard(expenses, 1, 3);
+    const buttons = kb.inline_keyboard.flat();
+
+    expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'expm:v:exp-1:1')).toBe(true);
+    expect(buttons.some((b) => b.text.includes('1 / 3'))).toBe(true);
+    expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'expm:p:2')).toBe(true);
+    expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'action:add_expense')).toBe(true);
+  });
+
+  it('builds expense details keyboard with appropriate actions based on canManage', () => {
+    const manageKb = buildExpenseDetailsKeyboard('exp-1', 2, true);
+    const manageBtns = manageKb.inline_keyboard.flat();
+    expect(manageBtns.some((b) => 'callback_data' in b && b.callback_data === 'expm:em:exp-1:2')).toBe(true);
+    expect(manageBtns.some((b) => 'callback_data' in b && b.callback_data === 'expm:dp:exp-1:2')).toBe(true);
+    expect(manageBtns.some((b) => 'callback_data' in b && b.callback_data === 'expm:p:2')).toBe(true);
+
+    const readOnlyKb = buildExpenseDetailsKeyboard('exp-1', 2, false);
+    const readOnlyBtns = readOnlyKb.inline_keyboard.flat();
+    expect(readOnlyBtns.some((b) => 'callback_data' in b && b.callback_data === 'expm:em:exp-1:2')).toBe(false);
+    expect(readOnlyBtns.some((b) => 'callback_data' in b && b.callback_data === 'expm:dp:exp-1:2')).toBe(false);
+    expect(readOnlyBtns.some((b) => 'callback_data' in b && b.callback_data === 'expm:p:2')).toBe(true);
+  });
+
+  it('builds delete confirmation keyboard with Cancel and Confirm Delete', () => {
+    const kb = buildDeleteConfirmationKeyboard('exp-1', 1);
+    const buttons = kb.inline_keyboard.flat();
+    expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'expm:v:exp-1:1')).toBe(true);
+    expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'expm:dc:exp-1:1')).toBe(true);
+  });
+
+  it('builds edit menu keyboard conditionally offering financial editing based on repayments', () => {
+    const withoutRepayments = buildEditMenuKeyboard('exp-1', 1, false);
+    const btns1 = withoutRepayments.inline_keyboard.flat();
+    expect(btns1.some((b) => 'callback_data' in b && b.callback_data === 'expm:ed:exp-1:1')).toBe(true);
+    expect(btns1.some((b) => 'callback_data' in b && b.callback_data === 'expm:ef:exp-1:1')).toBe(true);
+
+    const withRepayments = buildEditMenuKeyboard('exp-1', 1, true);
+    const btns2 = withRepayments.inline_keyboard.flat();
+    expect(btns2.some((b) => 'callback_data' in b && b.callback_data === 'expm:ed:exp-1:1')).toBe(true);
+    expect(btns2.some((b) => 'callback_data' in b && b.callback_data === 'expm:ef:exp-1:1')).toBe(false);
   });
 });

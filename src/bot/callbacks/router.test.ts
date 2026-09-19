@@ -124,4 +124,37 @@ describe('Callback Router', () => {
       show_alert: false,
     });
   });
+
+  it('routes action:expenses to expense management history', async () => {
+    const mockExpenseService = {
+      getExpenseHistoryForTelegram: vi.fn().mockResolvedValue({
+        expenses: [],
+        totalCount: 0,
+        page: 1,
+        totalPages: 1,
+        pageSize: 5,
+      }),
+    };
+    const services = { expenseService: mockExpenseService } as unknown as BotServices;
+    const router = createCallbackRouter(services);
+
+    const answerCallbackQueryMock = vi.fn().mockResolvedValue(true);
+    const replyMock = vi.fn().mockResolvedValue(undefined);
+
+    const mockCtx = {
+      chat: { id: -100555, title: 'Trip' },
+      from: { id: 123 },
+      callbackQuery: { data: 'action:expenses' },
+      answerCallbackQuery: answerCallbackQueryMock,
+      reply: replyMock,
+    } as unknown as Context;
+
+    await router(mockCtx);
+
+    expect(mockExpenseService.getExpenseHistoryForTelegram).toHaveBeenCalledWith(-100555, 123, 1);
+    expect(replyMock).toHaveBeenCalledWith(
+      expect.stringContaining('Expenses'),
+      expect.any(Object)
+    );
+  });
 });

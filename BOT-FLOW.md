@@ -442,10 +442,53 @@ BuddySplitter allows debtors to record and confirm repayments directly inside th
 | `exp:shares:done` | `shares-callbacks.ts` | Confirms shares allocation and proceeds to confirmation |
 | `exp:confirm:save` | `expense-callbacks.ts` | Idempotently persists expense and splits to database |
 | `exp:cancel` | `expense-callbacks.ts` | Cancels draft and deletes temporary state |
+| `action:expenses` | `expense-management-callbacks.ts` | Opens page 1 of active group expenses |
+| `expm:p:<page>` | `expense-management-callbacks.ts` | Navigates to specific page of expense history |
+| `expm:v:<id>:<page>` | `expense-management-callbacks.ts` | Displays full expense breakdown, splits, and actions |
+| `expm:dp:<id>:<page>` | `expense-management-callbacks.ts` | Prompts delete confirmation modal |
+| `expm:dc:<id>:<page>` | `expense-management-callbacks.ts` | Idempotently confirms soft deletion (`deleted_at: now()`) |
+| `expm:em:<id>:<page>` | `expense-management-callbacks.ts` | Displays edit choices (description vs financial edit) |
+| `expm:ed:<id>:<page>` | `expense-management-callbacks.ts` | Prompts user to reply with new description |
+| `expm:ef:<id>:<page>` | `expense-management-callbacks.ts` | Initiates full financial re-split flow |
+| `expm:noop` | `expense-management-callbacks.ts` | Safe no-op for informational page indicator buttons |
 
 ---
 
-## 9. Security & Validation Checklist
+## 9. Expense Management & Repayment Protection Flow
+
+```text
+User: /expenses or [📋 Expenses]
+                │
+                ▼
+      [Group Expense History] (5 per page, deterministic order)
+      [🔍 1. Dinner - ₹2,000] [🔍 2. Groceries - ₹850]
+      [⬅️ Prev] [Page 1/3] [Next ➡️]
+                │
+                ▼ (Tap on expense)
+      [Expense Details View]
+      • Description, Total Amount, Payer, Creator, Date, Split Breakdown
+      • If unauthorized member: [⬅️ Back to Expenses]
+      • If creator or payer:    [✏️ Edit]  [🗑 Delete]
+                │
+        ┌───────┴───────────────────────────────┐
+        ▼                                       ▼
+  [🗑 Delete]                             [✏️ Edit]
+        │                                       │
+        ├── Repayments exist?                   ├── Repayments exist?
+        │   └─► BLOCKED with alert              │   └─► Only [📝 Edit Description]
+        │                                       │
+        ▼ (No repayments)                       ▼ (No repayments)
+  [Confirmation Modal]                    [Edit Choices]
+  [❌ Cancel] [🗑 Confirm Delete]         [📝 Edit Description] [💰 Edit Amount & Splits]
+        │                                       │
+        ▼                                       ▼
+  Soft-delete (deleted_at: now())         • Description: reply with text
+  Recalculate balances & settlements      • Full: reuses wizard with split engines
+```
+
+---
+
+## 10. Security & Validation Checklist
 
 - [x] BigInt Telegram ID safe representation.
 - [x] Money stored exclusively in integer minor units (paise). Zero floating point operations in database or calculations.
@@ -459,5 +502,10 @@ BuddySplitter allows debtors to record and confirm repayments directly inside th
 - [x] Repayments do not mutate expenses: expenses and splits remain immutable.
 - [x] Overpayment rejection: payments exceeding current debt to recipient rejected with exact message `❌ Payment exceeds the current amount owed.`.
 - [x] Payer authorization: only debtor (`from_user_id`) can confirm payment.
+- [x] Expense management authorization: only creator or payer can edit or delete an expense; other members have read-only access.
+- [x] Repayment safety guard: financial modifications and deletion are strictly blocked if related repayment activity exists.
+- [x] Soft deletion: expenses are marked with `deleted_at: now()` and excluded from active balance/settlement queries.
+- [x] Soft-delete idempotency: double-taps on delete buttons safely acknowledge without error.
+
 
 

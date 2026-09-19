@@ -35,6 +35,8 @@ export interface ExpenseDraft {
   splits: SplitEntry[];
   customSplitIndex?: number; // Pointer for multi-step custom/percentage input
   sharesMap?: Record<string, number>; // Mapping participant userId -> number of shares
+  editingExpenseId?: string; // Database expense UUID if in edit mode
+  returnPage?: number; // Page number to return to upon completion/cancellation
   createdAt: number;
   updatedAt: number;
 }

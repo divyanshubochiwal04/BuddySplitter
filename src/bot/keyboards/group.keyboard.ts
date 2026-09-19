@@ -8,6 +8,6 @@ export function buildGroupMenuKeyboard(): InlineKeyboard {
     .text('📊 Summary', 'action:summary')
     .text('💸 Settle Up', 'action:settle_up')
     .row()
-    .text('📜 Expenses', 'coming_soon:expenses')
+    .text('📋 Expenses', 'action:expenses')
     .text('👥 Members', 'action:members');
 }

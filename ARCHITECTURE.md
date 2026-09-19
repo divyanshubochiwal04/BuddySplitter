@@ -254,6 +254,38 @@ Phase 8 converts settlement recommendations into trackable, immutable repayments
 - **Authorization Guard:** Only the payer can record or confirm their payment.
 - **Idempotency Guard:** `PaymentStateManager` uses a `SAVING` lock to prevent duplicate records upon rapid double-tapping.
 
+---
+
+## 13. Expense Management Architecture (`src/modules/expenses/`)
+
+Phase 9 introduces comprehensive expense history, details viewing, editing, and soft-deletion with domain authorization and repayment safety guards.
+
+### 13.1 Paginated History & Deterministic Ordering
+- Expenses are queried using active filter (`deleted_at IS NULL`) ordered deterministically:
+  `ORDER BY expense_date DESC, created_at DESC, id DESC`.
+- Paginated at 5 expenses per page to ensure fast rendering, compact keyboard layouts, and zero Telegram button overflow.
+- All member identities and display names are resolved in-context without leaking database UUIDs to users.
+
+### 13.2 Domain-Level Authorization
+- Only the **creator** (`expense.created_by`) or the **payer** (`expense.paid_by`) is authorized to edit or delete an expense.
+- All other active group members have read-only visibility into expense details and split breakdowns.
+- Authorization checks are strictly enforced in the service layer (`authorizeExpenseManagement`), rejecting unauthorized actions with descriptive validation errors.
+
+### 13.3 Repayment Safety & Financial History Integrity
+- When an expense is created, debts are generated among participants. If a repayment is subsequently recorded (`settlements` with `status = 'paid'`) involving the payer or any split participant, modifying the financial structure of that expense would compromise accounting integrity.
+- **Rules:**
+  1. **Deletion Guard:** If repayments exist related to this expense's payer or participants, deletion is strictly blocked:
+     `⚠️ This expense has repayment activity. It cannot be deleted because doing so would invalidate financial history.`
+  2. **Financial Edit Guard:** Amount, payer, participants, and split breakdowns cannot be modified if repayments exist:
+     `⚠️ This expense has related repayments. For financial safety, amount/payer/participants cannot be changed after repayment activity.`
+  3. **Description Edit Exemption:** Descriptions can always be edited because text annotations do not alter balances or debts.
+
+### 13.4 Soft Deletion & Balance Recalculation
+- Deletions are never physical hard deletes; rows are stamped with `deleted_at = new Date().toISOString()`.
+- Active expense queries (`findActiveExpensesWithSplitsByGroupId`) automatically exclude soft-deleted expenses via `deleted_at IS NULL`.
+- Balance recalculation (`calculateGroupBalances`), reconciliation (`reconcileBalances`), and settlement planning (`calculateSettlements`) automatically reflect the active ledger state without requiring manual balance patching or database triggers.
+- Double-tap deletion requests are handled idempotently, reporting `This expense is already deleted.` without throwing errors.
+
 
 
 

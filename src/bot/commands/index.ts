@@ -10,6 +10,7 @@ import { createBalanceCommandHandler } from './balance';
 import { createSummaryCommandHandler } from './summary';
 import { createSettleCommandHandler } from './settle';
 import { createPaymentsCommandHandler } from './payments';
+import { createExpensesCommandHandler } from './expenses';
 
 export function registerCommands(bot: Bot<Context>, services?: BotServices): void {
   if (services) {
@@ -20,6 +21,7 @@ export function registerCommands(bot: Bot<Context>, services?: BotServices): voi
     bot.command('summary', createSummaryCommandHandler(services));
     bot.command('settle', createSettleCommandHandler(services));
     bot.command('payments', createPaymentsCommandHandler(services));
+    bot.command('expenses', createExpensesCommandHandler(services));
   } else {
     bot.command('start', handleStart);
     bot.command('add', createComingSoonHandler('Expense Tracking (/add)'));
@@ -27,13 +29,11 @@ export function registerCommands(bot: Bot<Context>, services?: BotServices): voi
     bot.command('summary', createComingSoonHandler('Group Summary (/summary)'));
     bot.command('settle', createComingSoonHandler('Settlement Engine (/settle)'));
     bot.command('payments', createComingSoonHandler('Payment History (/payments)'));
+    bot.command('expenses', createComingSoonHandler('Expense History (/expenses)'));
   }
 
   bot.command('help', handleHelp);
   bot.command('cancel', handleCancel);
-
-  // Informative placeholders for future phase commands
-  bot.command('expenses', createComingSoonHandler('Expense History (/expenses)'));
 }
 
 export * from './start';
@@ -45,4 +45,5 @@ export * from './balance';
 export * from './summary';
 export * from './settle';
 export * from './payments';
+export * from './expenses';
 export * from './coming-soon';

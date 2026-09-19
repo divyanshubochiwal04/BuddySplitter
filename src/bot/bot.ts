@@ -5,6 +5,7 @@ import { registerCommands } from './commands';
 import { createCallbackRouter } from './callbacks';
 import { createRegistrationMiddleware } from './middleware/registration.middleware';
 import { handleExpenseTextInput } from '../modules/expenses/expense-flow';
+import { handleExpenseEditTextInput } from './callbacks/expense-management-callbacks';
 import { handlePaymentTextInput } from '../modules/settlements/payment-flow';
 import { BOT_ADDED_TO_GROUP_MESSAGE, UNKNOWN_COMMAND_MESSAGE } from './messages';
 import { buildGroupMenuKeyboard } from './keyboards';
@@ -90,6 +91,9 @@ export function createBot(token: string, services?: BotServices): Bot<Context> {
       }
       const expenseHandled = await handleExpenseTextInput(ctx, services);
       if (expenseHandled) return;
+
+      const expenseEditHandled = await handleExpenseEditTextInput(ctx, services);
+      if (expenseEditHandled) return;
 
       const paymentHandled = await handlePaymentTextInput(ctx, services);
       if (paymentHandled) return;

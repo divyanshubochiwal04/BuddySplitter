@@ -17,6 +17,7 @@ import {
   buildGroupSettlementKeyboard,
 } from '../keyboards/settlement.keyboard';
 import { handleExpenseCallback } from './expense-callbacks';
+import { handleExpenseManagementCallback } from './expense-management-callbacks';
 import { handlePaymentCallback } from './payment-callbacks';
 import { startExpenseFlow } from '../../modules/expenses/expense-flow';
 import { logger } from '../../shared/logger';
@@ -45,6 +46,11 @@ export function createCallbackRouter(services: BotServices) {
       if (data === 'action:add_expense') {
         await ctx.answerCallbackQuery();
         await startExpenseFlow(ctx, services);
+        return;
+      }
+
+      const expManagementHandled = await handleExpenseManagementCallback(ctx, data, services);
+      if (expManagementHandled) {
         return;
       }
 

@@ -353,14 +353,20 @@ export async function handleExpenseCallback(
     await ctx.answerCallbackQuery({ text: 'Saving expense...' });
 
     try {
-      await services.expenseService.createExpenseFromDraft(draft);
+      if (draft.editingExpenseId) {
+        await services.expenseService.updateExpenseFromDraft(draft);
+      } else {
+        await services.expenseService.createExpenseFromDraft(draft);
+      }
       expenseStateManager.clearState(chatId, userId);
 
-      const successText = formatExpenseSuccess(
-        draft.description!,
-        draft.totalAmount!,
-        draft.payerName || 'Payer'
-      );
+      const successText = draft.editingExpenseId
+        ? `✅ Expense "*${draft.description!}*" updated successfully!\n\nGroup balances have been recalculated.`
+        : formatExpenseSuccess(
+            draft.description!,
+            draft.totalAmount!,
+            draft.payerName || 'Payer'
+          );
 
       try {
         await ctx.editMessageText(successText, { parse_mode: 'Markdown' });
