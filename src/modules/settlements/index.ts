@@ -1,8 +1,13 @@
 /**
  * Settlements Module
  *
- * Encapsulates debt simplification, balance calculations, and repayment records.
+ * Encapsulates debt simplification, balance calculations, and settlement recommendations.
  */
+
+export * from './settlement.types';
+export * from './settlement.calculator';
+export * from './settlement.formatter';
+export * from './settlement.service';
 
 export type SettlementStatus = 'pending' | 'paid' | 'cancelled';
 
@@ -17,15 +22,4 @@ export interface Settlement {
   createdBy: string;
   settledAt?: Date | null;
   createdAt: Date;
-}
-
-export interface Balance {
-  userId: string;
-  amount: number; // Minor units: positive = owed money, negative = owes money
-}
-
-export interface Debt {
-  fromUserId: string;
-  toUserId: string;
-  amount: number; // Minor units (paise)
 }

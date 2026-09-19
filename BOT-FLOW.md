@@ -308,15 +308,74 @@ Expense creation in BuddySplitter is an interactive multi-step wizard conducted 
     ```
   - **Notice:** Strictly presents balance states without settlement instructions (who pays whom is deferred to Phase 7).
 
+## 6. Settlement Flow (Phase 7)
+
+### 6.1 Personal Settlement View (`/settle` or `action:settle_up`)
+- **Triggers:**
+  - Slash command: `/settle` (in group/supergroup)
+  - Inline button: `[💸 Settle Up]` (`action:settle_up`) from group menu
+- **Guard:**
+  - If triggered in a private chat: returns `⚠️ Settlement is available inside a group.`
+  - Validates user is an active member of the group.
+- **Output:**
+  - If user is settled:
+    ```text
+    💸 Your Settlements
+
+    ⚪ You're all settled up!
+    No payments or receivables needed.
+    ```
+  - If user has debts to pay:
+    ```text
+    💸 Your Settlements
+
+    🔴 You pay:
+    • Alice — ₹1200.00
+    • Rahul — ₹500.00
+    ```
+  - If user has credits to receive:
+    ```text
+    💸 Your Settlements
+
+    🟢 You receive:
+    • Aman — ₹800.00
+    ```
+- **Inline Controls:**
+  - `[📊 Full Plan]` (`settle:full`): Renders full group settlement recommendations.
+  - `[◀️ Back]` (`menu:group`): Returns to group main menu.
+
+### 6.2 Full Group Settlement Plan (`settle:full`)
+- **Trigger:**
+  - Inline button: `[📊 Full Plan]` (`settle:full`) from personal settlement view
+- **Output:**
+  ```text
+  💸 Group Settlement Plan
+
+  🔴 Recommended Payments:*
+  • Bob → Alice ₹1200.00
+  • Charlie → Alice ₹800.00
+  • Dev → Rahul ₹500.00
+
+  💰 Total to settle: ₹2500.00
+  🔄 Payments: 3 payments
+
+  _This is a recommendation only. Payments are not recorded until marked as paid._
+  ```
+- **Inline Controls:**
+  - `[👤 My Settlements]` (`action:settle_up`): Returns to user's personal settlement summary.
+  - `[◀️ Back]` (`menu:group`): Returns to group main menu.
+
 ---
 
-## 6. Callback Query Protocol Reference
+## 7. Callback Query Protocol Reference
 
 | Callback Data Pattern | Handler | Action Description |
 | :--- | :--- | :--- |
 | `action:add_expense` | `router.ts` | Entry point from group menu to start `/add` flow |
 | `action:my_balance` | `router.ts` | Displays calling user's personal balance in current group |
 | `action:summary` | `router.ts` | Displays full group balance summary breakdown |
+| `action:settle_up` | `router.ts` | Displays user's personal settlement actions with `[📊 Full Plan]` button |
+| `settle:full` | `router.ts` | Displays full group recommended settlement transactions |
 | `exp:payer:me` | `expense-callbacks.ts` | Assigns current user as payer |
 | `exp:payer:pick` | `expense-callbacks.ts` | Renders list of group members to select payer |
 | `exp:payer:set:<userId>` | `expense-callbacks.ts` | Assigns selected member as payer |
@@ -335,7 +394,7 @@ Expense creation in BuddySplitter is an interactive multi-step wizard conducted 
 
 ---
 
-## 7. Security & Validation Checklist
+## 8. Security & Validation Checklist
 
 - [x] BigInt Telegram ID safe representation.
 - [x] Money stored exclusively in integer minor units (paise). Zero floating point operations in database or calculations.
@@ -345,4 +404,6 @@ Expense creation in BuddySplitter is an interactive multi-step wizard conducted 
 - [x] 15-minute TTL per draft to prevent memory leaks.
 - [x] Isolated state keys preventing cross-user race conditions.
 - [x] Mathematical conservation invariant: `SUM(netBalance) === 0` audited across every balance calculation.
+- [x] Settlement conservation invariant: `SUM(transactions) === SUM(positive netBalances)` with simulated residual balances audited to 0.
+- [x] Zero database writes for settlement recommendations (read-only advisory preview).
 

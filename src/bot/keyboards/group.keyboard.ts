@@ -6,7 +6,7 @@ export function buildGroupMenuKeyboard(): InlineKeyboard {
     .text('💰 My Balance', 'action:my_balance')
     .row()
     .text('📊 Summary', 'action:summary')
-    .text('💸 Settle Up', 'coming_soon:settle_up')
+    .text('💸 Settle Up', 'action:settle_up')
     .row()
     .text('📜 Expenses', 'coming_soon:expenses')
     .text('👥 Members', 'action:members');

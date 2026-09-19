@@ -8,6 +8,14 @@ import {
   formatUserPersonalBalance,
   formatGroupBalanceSummary,
 } from '../../modules/balances/balance.formatter';
+import {
+  formatUserSettlementSummary,
+  formatGroupSettlementPlan,
+} from '../../modules/settlements/settlement.formatter';
+import {
+  buildUserSettlementKeyboard,
+  buildGroupSettlementKeyboard,
+} from '../keyboards/settlement.keyboard';
 import { handleExpenseCallback } from './expense-callbacks';
 import { startExpenseFlow } from '../../modules/expenses/expense-flow';
 import { logger } from '../../shared/logger';
@@ -154,6 +162,53 @@ export function createCallbackRouter(services: BotServices) {
           });
         } catch (err: any) {
           await ctx.reply(`⚠️ ${err.message || 'Unable to retrieve summary.'}`);
+        }
+        return;
+      }
+
+      if (data === 'action:settle_up' || data === 'action:settle') {
+        await ctx.answerCallbackQuery();
+        if (!ctx.chat?.id || !ctx.from?.id) {
+          await ctx.reply('⚠️ Unable to retrieve settlement recommendations.');
+          return;
+        }
+        try {
+          const { userSummary, groupPlan } =
+            await services.settlementService.getUserSettlementSummaryForTelegram(
+              ctx.chat.id,
+              ctx.from.id
+            );
+          const message = formatUserSettlementSummary(userSummary);
+          const keyboard = buildUserSettlementKeyboard(groupPlan.transactions.length > 0);
+          await ctx.reply(message, {
+            parse_mode: 'Markdown',
+            reply_markup: keyboard,
+          });
+        } catch (err: any) {
+          await ctx.reply(`⚠️ ${err.message || 'Unable to retrieve settlement recommendations.'}`);
+        }
+        return;
+      }
+
+      if (data === 'settle:full' || data === 'action:settle_full') {
+        await ctx.answerCallbackQuery();
+        if (!ctx.chat?.id || !ctx.from?.id) {
+          await ctx.reply('⚠️ Unable to retrieve group settlement plan.');
+          return;
+        }
+        try {
+          const groupPlan =
+            await services.settlementService.getGroupSettlementPlanForTelegram(
+              ctx.chat.id,
+              ctx.from.id
+            );
+          const message = formatGroupSettlementPlan(groupPlan);
+          await ctx.reply(message, {
+            parse_mode: 'Markdown',
+            reply_markup: buildGroupSettlementKeyboard(),
+          });
+        } catch (err: any) {
+          await ctx.reply(`⚠️ ${err.message || 'Unable to retrieve group settlement plan.'}`);
         }
         return;
       }

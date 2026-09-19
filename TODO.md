@@ -82,9 +82,23 @@
   - Strictly separated from settlement optimization: no "who pays whom" or settlement instructions.
   - 29 unit test suites with 154 passing tests.
 
-- [ ] **Phase 7: Settlement Engine**
-  - Debt simplification algorithm (minimizing total payment transactions).
-  - `/settle` command providing recommended settlement transactions.
+- [x] **Phase 7: Settlement Engine**
+  - Pure domain settlement calculator (`calculateSettlements`) implementing greedy bipartite debtor-creditor matching.
+  - Transaction minimization: guarantees at most $N-1$ transactions for $N$ unbalanced members without NP-hard exponential subset search.
+  - 100% integer minor units (paise: ₹1 = 100 paise) with zero floating-point arithmetic.
+  - Mathematical conservation invariants: `SUM(transferred) === SUM(positive credits) === SUM(negative debts)` and residual simulated balances evaluate to exactly 0 for every member.
+  - Deterministic sorting: creditors sorted descending by credit amount with `userId` lexical tie-breaking; debtors sorted descending by debt amount with `userId` lexical tie-breaking.
+  - Zero self-payments guaranteed (`fromUserId !== toUserId`).
+  - Already balanced group handled cleanly (`transactions: []`, `isSettled: true`).
+  - `SettlementService` decoupled from database writes, consuming `BalanceService` as authoritative truth (zero duplicate DB queries or expense recalculation).
+  - Telegram UX:
+    - `/settle` command with group chat guard (`⚠️ Settlement is available inside a group.`).
+    - Connected `[💸 Settle Up]` group menu button (`action:settle_up`).
+    - Personal settlement view showing actionable debts to pay and credits to receive.
+    - Interactive `[📊 Full Plan]` button (`settle:full`) showing complete group recommended payments and totals.
+    - Back navigation returning to personal settlement view or main menu.
+  - Zero database persistence: recommendations are non-destructive previews (repayments and status tracking deferred to Phase 8).
+  - 33 unit test suites with 188 passing tests.
 
 - [ ] **Phase 8: Repayments**
   - Record payments / settlements between members (`/pay` or `/settled`).

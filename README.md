@@ -8,7 +8,7 @@
 [![Node.js](https://img.shields.io/badge/Node.js-20+-green?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![grammY](https://img.shields.io/badge/grammY-Telegram_Bot-2489FF?style=for-the-badge&logo=telegram&logoColor=white)](https://grammy.dev/)
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com/)
-[![Vitest](https://img.shields.io/badge/Tests-154%20Passed-6E9F18?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev/)
+[![Vitest](https://img.shields.io/badge/Tests-188%20Passed-6E9F18?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
 <p align="center">
@@ -43,6 +43,7 @@ Unlike traditional split tools (Splitwise, spreadsheets, web apps), BuddySplitte
 | 🤖 **Interactive Multi-Step Wizard** | Conversational flow for logging expenses: Description ➔ Amount ➔ Payer ➔ Participants ➔ Split Mode ➔ Confirmation. |
 | ⚖️ **4 Split Engines** | **Equal Split** (remainder distribution), **Custom Amounts** (real-time validation), **Percentage** (Hare-Niemeyer method), and **Shares** (deterministic largest remainder). |
 | 📊 **Mathematical Balance Engine** | Exact per-member net balance calculation (`paid - owed`) audited by conservation invariant `SUM(netBalance) === 0` and zero float drift. |
+| 💸 **Greedy Settlement Engine** | Debt simplification via greedy bipartite matching, producing minimal recommended transfers (bounded by at most $N-1$ transactions). |
 | 💎 **Zero Float Drift** | All currency operations are calculated in integer minor units (paise). ₹1500.50 is handled as `150050` paise. |
 | 🔒 **State Isolation & Concurrency** | In-memory session state scoped by composite key `${chatId}:${userId}` with a 15-minute TTL eviction, allowing multiple members to log expenses simultaneously. |
 | 🛡️ **Atomicity & Idempotency** | Double-tap prevention using transient `SAVING` state lock; automatic compensating rollback deletion if split persistence fails. |
@@ -189,8 +190,8 @@ The database is built on PostgreSQL via Supabase, with full relational integrity
 | `/members` | Group Only | Displays active registered members in the current group |
 | `/balance` | Group Only | View your personal balance (paid, share, net standing) in the group |
 | `/summary` | Group Only | View full group summary with creditors, debtors, and totals |
+| `/settle` | Group Only | View recommended debt-simplified settlement plan |
 | `/cancel` | Group Only | Aborts the current active expense creation wizard session |
-| `/settle` | Group Only | *(Coming Soon)* Debt-simplified settlement recommendations |
 
 ---
 
@@ -271,6 +272,10 @@ npm test
 ```
 
 ```text
+ ✓ src/bot/commands/settle-commands.test.ts (5 tests)
+ ✓ src/modules/settlements/settlement.calculator.test.ts (16 tests)
+ ✓ src/modules/settlements/settlement.formatter.test.ts (6 tests)
+ ✓ src/modules/settlements/settlement.service.test.ts (6 tests)
  ✓ src/bot/commands/balance-commands.test.ts (8 tests)
  ✓ src/modules/balances/balance.calculator.test.ts (11 tests)
  ✓ src/modules/balances/balance.formatter.test.ts (6 tests)
@@ -301,8 +306,8 @@ npm test
  ✓ src/shared/errors.test.ts (3 tests)
  ✓ src/bot/bot.test.ts (1 test)
 
- Test Files  29 passed (29)
-      Tests  154 passed (154)
+ Test Files  33 passed (33)
+      Tests  188 passed (188)
 ```
 
 ---
@@ -315,7 +320,7 @@ npm test
 - [x] **Phase 4: Expense Flow** — Conversational wizard, 3 split engines (Equal, Custom, Hare-Niemeyer Percentage), idempotent lock, compensating rollback.
 - [x] **Phase 5: Advanced Splits** — Share-based split (`shares` split type) with dynamic stepper UI, deterministic largest remainder rounding, participant modification, and split method switching.
 - [x] **Phase 6: Balance Engine** — Mathematical net balance calculator, `/balance`, `/summary`, conservation invariant verification, deterministic sorting.
-- [ ] **Phase 7: Settlement Engine** — Debt simplification algorithm (min-cash-flow graph solver), `/settle`.
+- [x] **Phase 7: Settlement Engine** — Debt simplification algorithm (greedy bipartite matching bounded by at most $N-1$ transactions), `/settle`, interactive settlement preview.
 - [ ] **Phase 8: Repayments** — Record member-to-member repayments (`/pay`, `/settled`), payment audit log.
 - [ ] **Phase 9: Expense Management** — Expense history (`/expenses`), edit/delete with authorization checks.
 - [ ] **Phase 10: UX Polish** — Multi-currency formatting, inline reminder notifications.

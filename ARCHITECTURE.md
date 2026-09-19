@@ -170,5 +170,53 @@ Members are classified into three mutually exclusive categories:
 ### 10.4 Query Efficiency (Zero N+1)
 `findActiveExpensesWithSplitsByGroupId` fetches all active group expenses and their splits via two efficient batch queries, mapping relations in-memory without repetitive roundtrips.
 
+---
+
+## 11. Settlement Engine (`src/modules/settlements/`)
+
+The Settlement Engine simplifies member balances into a minimal, actionable series of recommended peer-to-peer transfers.
+
+### 11.1 Service Architecture & Single Source of Truth
+The settlement pipeline follows a strict layered topology:
+```text
+Telegram Handlers (/settle, action:settle_up, settle:full)
+                     │
+                     ▼
+             SettlementService
+                     │  (delegates balance retrieval)
+                     ▼
+              BalanceService
+                     │
+                     ▼
+           SettlementCalculator (Pure Domain Logic)
+```
+- `SettlementService` does not re-query the database or recalculate expenses. It consumes `BalanceService` output directly.
+- Recommendations are non-persistent previews: Phase 7 executes zero writes to the `settlements` table. Actual repayment logging, receipts, and payment status transitions are strictly deferred to Phase 8.
+
+### 11.2 Algorithm: Greedy Bipartite Debtor-Creditor Matching
+1. **Partition:** Separates positive net balances (`creditors`) and negative net balances (`debtors`, converting net debt to positive payable units).
+2. **Deterministic Ordering:**
+   - Creditors are sorted descending by remaining credit, tie-breaking lexically by `userId`.
+   - Debtors are sorted descending by remaining debt, tie-breaking lexically by `userId`.
+   - Guaranteed determinism: identical balance states produce identical transaction sets regardless of input array ordering.
+3. **Greedy Matching:**
+   - Matches the current top debtor with the current top creditor.
+   - Generates a transfer of $\min(\text{remainingDebt}, \text{remainingCredit})$.
+   - Deducts the transferred amount from both parties.
+   - Advances pointers when a party's balance reaches zero.
+   - Continues until all debts and credits are fully satisfied.
+
+### 11.3 Transaction Minimization Bound
+- **Worst-Case Guarantee:** For $N = D + C$ unbalanced participants ($D$ debtors and $C$ creditors), the algorithm produces at most $N - 1$ transactions.
+- **NP-Hardness Context:** Finding the absolute minimum number of transactions across arbitrary subsets is equivalent to the **Subset Sum / Multi-Way Partitioning** problem, which is NP-hard. The greedy heuristic achieves an optimal or near-optimal transaction count in $O(N \log N)$ time, eliminating all cyclic debts without exponential computation.
+
+### 11.4 Invariants & Correctness Guarantees
+- $\text{amount} > 0$ strictly in integer minor units (paise). Zero floating-point arithmetic.
+- $\text{fromUserId} \neq \text{toUserId}$ (guaranteed zero self-payments).
+- Total settlement volume matches total positive credit:
+  $$\sum \text{transaction.amount} = \sum_{M, \text{netBalance} > 0} \text{netBalance}_M = \sum_{M, \text{netBalance} < 0} |\text{netBalance}_M|$$
+- **Simulation Invariant Audit:** The calculator simulates applying every generated transaction against initial member balances and asserts that every member's remaining balance resolves to exactly $0$ paise.
+
+
 
 
