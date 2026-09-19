@@ -46,4 +46,51 @@ describe('Environment Validation', () => {
     const invalid = { ...validEnv, SUPABASE_ANON_KEY: '' };
     expect(() => validateEnv(invalid)).toThrow(/SUPABASE_ANON_KEY/);
   });
+
+  it('defaults PORT to 3000 and TELEGRAM_WEBHOOK_PATH to /telegram/webhook', () => {
+    const result = validateEnv(validEnv);
+    expect(result.PORT).toBe(3000);
+    expect(result.TELEGRAM_WEBHOOK_PATH).toBe('/telegram/webhook');
+    expect(result.TELEGRAM_WEBHOOK_SECRET).toBeUndefined();
+  });
+
+  it('accepts custom PORT and parses string to integer', () => {
+    const withCustomPort = { ...validEnv, PORT: '8080' };
+    const result = validateEnv(withCustomPort);
+    expect(result.PORT).toBe(8080);
+  });
+
+  it('accepts optional TELEGRAM_WEBHOOK_SECRET', () => {
+    const withSecret = { ...validEnv, TELEGRAM_WEBHOOK_SECRET: 'my-super-secret-token' };
+    const result = validateEnv(withSecret);
+    expect(result.TELEGRAM_WEBHOOK_SECRET).toBe('my-super-secret-token');
+  });
+
+  it('fails when TELEGRAM_WEBHOOK_SECRET is empty string', () => {
+    const invalidSecret = { ...validEnv, TELEGRAM_WEBHOOK_SECRET: '' };
+    expect(() => validateEnv(invalidSecret)).toThrow(/TELEGRAM_WEBHOOK_SECRET/);
+  });
+
+  it('fails when TELEGRAM_WEBHOOK_SECRET is omitted in production mode', () => {
+    const prodEnvWithoutSecret = { ...validEnv, NODE_ENV: 'production' };
+    expect(() => validateEnv(prodEnvWithoutSecret)).toThrow(/TELEGRAM_WEBHOOK_SECRET is required in production mode/);
+  });
+
+  it('succeeds when TELEGRAM_WEBHOOK_SECRET is provided in production mode', () => {
+    const prodEnvWithSecret = {
+      ...validEnv,
+      NODE_ENV: 'production',
+      TELEGRAM_WEBHOOK_SECRET: 'prod-secret-token-12345',
+    };
+    const result = validateEnv(prodEnvWithSecret);
+    expect(result.NODE_ENV).toBe('production');
+    expect(result.TELEGRAM_WEBHOOK_SECRET).toBe('prod-secret-token-12345');
+  });
+
+  it('allows TELEGRAM_WEBHOOK_SECRET to be omitted in development mode', () => {
+    const devEnv = { ...validEnv, NODE_ENV: 'development' };
+    const result = validateEnv(devEnv);
+    expect(result.NODE_ENV).toBe('development');
+    expect(result.TELEGRAM_WEBHOOK_SECRET).toBeUndefined();
+  });
 });

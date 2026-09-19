@@ -242,6 +242,9 @@ SUPABASE_URL="https://your-project.supabase.co"
 SUPABASE_ANON_KEY="your-anon-key"
 SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
 NODE_ENV="development"
+PORT="3000"
+TELEGRAM_WEBHOOK_SECRET="your-secure-webhook-secret"
+TELEGRAM_WEBHOOK_PATH="/telegram/webhook"
 ```
 
 ### 3. Database Migration
@@ -249,7 +252,9 @@ NODE_ENV="development"
 Run the SQL migration in your Supabase SQL Editor:
 - File: [`supabase/migrations/20260919000000_create_buddysplitter_schema.sql`](supabase/migrations/20260919000000_create_buddysplitter_schema.sql)
 
-### 4. Run Locally
+### 4. Run Locally in Webhook Mode
+
+BuddySplitter runs a production-grade webhook server using Node.js's native `http` module listening on `0.0.0.0:${PORT}`.
 
 ```bash
 # Typecheck
@@ -261,9 +266,34 @@ npm test
 # Build production bundle
 npm run build
 
-# Start bot
+# Start bot in webhook mode
 npm start
 ```
+
+#### Endpoints:
+- `GET /health` -> Returns `{"status":"ok"}` (used by health checks / Render).
+- `POST /telegram/webhook` -> Dedicated endpoint for incoming Telegram updates authenticated via `X-Telegram-Bot-Api-Secret-Token`.
+
+#### Testing Webhooks Locally:
+
+To test incoming Telegram updates on your local machine:
+1. Start a local tunnel (e.g. using `ngrok` or `cloudflared`):
+   ```bash
+   ngrok http 3000
+   ```
+2. Register your public tunnel URL with Telegram's Bot API:
+   ```bash
+   curl -X POST "https://api.telegram.org/bot<YOUR_TELEGRAM_BOT_TOKEN>/setWebhook" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "url": "https://<your-ngrok-subdomain>.ngrok-free.app/telegram/webhook",
+       "secret_token": "<YOUR_TELEGRAM_WEBHOOK_SECRET>"
+     }'
+   ```
+3. Verify webhook status anytime:
+   ```bash
+   curl "https://api.telegram.org/bot<YOUR_TELEGRAM_BOT_TOKEN>/getWebhookInfo"
+   ```
 
 ---
 
