@@ -67,10 +67,20 @@
   - PostgreSQL database migration (`supabase/migrations/20260919000001_add_shares_split_type.sql`) adding `'shares'` to `split_type` check constraint and optional `shares` column to `expense_splits`.
   - 25 unit test suites with 122 passing tests covering mathematical edge cases, property invariants, and conversational flows.
 
-- [ ] **Phase 6: Balance Engine**
-  - Group net balance calculation for every member.
-  - `/balances` command with clear summary view.
-  - Individual `/mybalance` command in private or group chat.
+- [x] **Phase 6: Balance Engine**
+  - Pure domain balance calculator (`calculateGroupBalances`) computing `paidAmount`, `owedAmount`, and `netBalance` per member.
+  - Zero floating-point drift: all monetary computations executed in integer minor units (paise: ₹1 = 100 paise).
+  - Mathematical conservation invariant verification: `SUM(paidAmount) === SUM(owedAmount) === totalExpensesAmount` and `SUM(netBalance) === 0`.
+  - Authoritative data sourcing from persisted active records (`deleted_at IS NULL`), splitting amounts directly from `expense_splits`.
+  - Batch repository query (`findActiveExpensesWithSplitsByGroupId`) eliminating N+1 DB roundtrips.
+  - Deterministic sorting: creditors descending by net balance, debtors ascending by net balance (largest debt first), settled alphabetically by display name.
+  - Telegram commands:
+    - `/balance`: Personal balance breakdown (Paid, Share, Net) with status header (green/red/settled).
+    - `/summary`: Group balance breakdown with creditors list, debtors list, settled members, and total expense stats.
+  - Chat type guards: private chats rejected with helpful prompts (`⚠️ Balance is available inside a group.`).
+  - Interactive group menu buttons: `[💰 My Balance]` (`action:my_balance`) and `[📊 Summary]` (`action:summary`) wired up.
+  - Strictly separated from settlement optimization: no "who pays whom" or settlement instructions.
+  - 29 unit test suites with 154 passing tests.
 
 - [ ] **Phase 7: Settlement Engine**
   - Debt simplification algorithm (minimizing total payment transactions).

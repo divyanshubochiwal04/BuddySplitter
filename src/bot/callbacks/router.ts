@@ -4,6 +4,10 @@ import { BotServices } from '../../modules/services';
 import { GROUP_START_MESSAGE, PRIVATE_START_MESSAGE, HELP_MESSAGE } from '../messages';
 import { buildGroupMenuKeyboard, buildPrivateMenuKeyboard, buildBackRow } from '../keyboards';
 import { formatMembersListMessage } from '../messages/members';
+import {
+  formatUserPersonalBalance,
+  formatGroupBalanceSummary,
+} from '../../modules/balances/balance.formatter';
 import { handleExpenseCallback } from './expense-callbacks';
 import { startExpenseFlow } from '../../modules/expenses/expense-flow';
 import { logger } from '../../shared/logger';
@@ -109,6 +113,48 @@ export function createCallbackRouter(services: BotServices) {
           }
         }
         await ctx.reply('⚠️ Group information is not available. Please use /start inside the group.');
+        return;
+      }
+
+      if (data === 'action:my_balance' || data === 'action:balance') {
+        await ctx.answerCallbackQuery();
+        if (!ctx.chat?.id || !ctx.from?.id) {
+          await ctx.reply('⚠️ Unable to retrieve balance.');
+          return;
+        }
+        try {
+          const balance = await services.balanceService.getUserBalanceForTelegram(
+            ctx.chat.id,
+            ctx.from.id
+          );
+          await ctx.reply(formatUserPersonalBalance(balance), {
+            parse_mode: 'Markdown',
+            reply_markup: buildBackRow('menu:group'),
+          });
+        } catch (err: any) {
+          await ctx.reply(`⚠️ ${err.message || 'Unable to retrieve balance.'}`);
+        }
+        return;
+      }
+
+      if (data === 'action:summary') {
+        await ctx.answerCallbackQuery();
+        if (!ctx.chat?.id || !ctx.from?.id) {
+          await ctx.reply('⚠️ Unable to retrieve summary.');
+          return;
+        }
+        try {
+          const summary = await services.balanceService.getGroupSummaryForTelegram(
+            ctx.chat.id,
+            ctx.from.id
+          );
+          await ctx.reply(formatGroupBalanceSummary(summary), {
+            parse_mode: 'Markdown',
+            reply_markup: buildBackRow('menu:group'),
+          });
+        } catch (err: any) {
+          await ctx.reply(`⚠️ ${err.message || 'Unable to retrieve summary.'}`);
+        }
         return;
       }
 

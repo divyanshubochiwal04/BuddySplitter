@@ -144,4 +144,31 @@ Financial operations enforce strict correctness guarantees:
 - **Idempotent Submission:** When the confirmation button (`[✅ Save Expense]`) is clicked, the draft step immediately flips to `SAVING`. Repeated button presses or network retries are safely ignored.
 - **Rollback on Partial Failure:** In the event of a failure during batch insertion into `expense_splits`, the repository layer invokes a compensating delete on the newly created `expenses` row, preventing orphaned records.
 
+---
+
+## 10. Balance Engine (`src/modules/balances/`)
+
+The Balance Engine provides a mathematically rigorous, deterministic calculation of each group member's financial standing:
+
+### 10.1 Mathematical Model
+For every member $M$:
+- $\text{paidAmount} = \sum \text{expense.total\_amount}$ for all active non-deleted expenses where $\text{expense.paid\_by} = M.\text{userId}$
+- $\text{owedAmount} = \sum \text{split.amount}$ for all splits on active non-deleted expenses where $\text{split.user\_id} = M.\text{userId}$
+- $\text{netBalance} = \text{paidAmount} - \text{owedAmount}$
+
+### 10.2 Conservation Invariant
+Every calculation run is audited against the conservation law:
+$$\sum_{M} \text{paidAmount} = \sum_{M} \text{owedAmount} = \text{totalExpensesAmount} \implies \sum_{M} \text{netBalance} = 0$$
+If $\sum \text{netBalance} \neq 0$ or if any expense's split sum $\neq \text{total\_amount}$, the engine fails fast by throwing a `ValidationError`.
+
+### 10.3 Classification & Deterministic Sorting
+Members are classified into three mutually exclusive categories:
+- **Creditors (`creditor`):** $\text{netBalance} > 0$ (should receive money). Sorted descending by net balance, tie-broken alphabetically by display name.
+- **Debtors (`debtor`):** $\text{netBalance} < 0$ (owes money). Sorted ascending by net balance (largest debt first), tie-broken alphabetically by display name.
+- **Settled (`settled`):** $\text{netBalance} = 0$ (even). Sorted alphabetically by display name.
+
+### 10.4 Query Efficiency (Zero N+1)
+`findActiveExpensesWithSplitsByGroupId` fetches all active group expenses and their splits via two efficient batch queries, mapping relations in-memory without repetitive roundtrips.
+
+
 

@@ -61,6 +61,38 @@ export class ExpenseRepository {
     return data ?? [];
   }
 
+  async findActiveExpensesWithSplitsByGroupId(groupId: string): Promise<ExpenseWithSplits[]> {
+    const { data: expenses, error: expensesError } = await this.client
+      .from('expenses')
+      .select('*')
+      .eq('group_id', groupId)
+      .is('deleted_at', null)
+      .order('expense_date', { ascending: true });
+
+    if (expensesError) throw expensesError;
+    if (!expenses || expenses.length === 0) return [];
+
+    const expenseIds = expenses.map((e) => e.id);
+    const { data: splits, error: splitsError } = await this.client
+      .from('expense_splits')
+      .select('*')
+      .in('expense_id', expenseIds);
+
+    if (splitsError) throw splitsError;
+
+    const splitsByExpenseId = new Map<string, ExpenseSplitRow[]>();
+    for (const split of splits ?? []) {
+      const existing = splitsByExpenseId.get(split.expense_id) ?? [];
+      existing.push(split);
+      splitsByExpenseId.set(split.expense_id, existing);
+    }
+
+    return expenses.map((expense) => ({
+      ...expense,
+      splits: splitsByExpenseId.get(expense.id) ?? [],
+    }));
+  }
+
   async createExpenseWithSplits(
     expense: ExpenseInsert,
     splits: Omit<ExpenseSplitInsert, 'expense_id'>[]

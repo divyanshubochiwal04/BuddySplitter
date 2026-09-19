@@ -235,11 +235,88 @@ Expense creation in BuddySplitter is an interactive multi-step wizard conducted 
 
 ---
 
-## 4. Callback Query Protocol Reference
+## 5. Balance & Summary Flows (Phase 6)
+
+### 5.1 Personal Balance (`/balance` or `action:my_balance`)
+- **Triggers:**
+  - Slash command: `/balance` (in group/supergroup)
+  - Inline button: `[💰 My Balance]` (`action:my_balance`) from group menu
+- **Guard:**
+  - If triggered in a private chat: returns `⚠️ Balance is available inside a group.`
+  - Validates user is an active member of the group.
+- **Output:**
+  - If netBalance > 0 (creditor):
+    ```text
+    💰 Your Balance
+
+    🟢 You should receive: ₹200.00
+
+    • Paid: ₹300.00
+    • Your share: ₹100.00
+    • Net: +₹200.00
+    ```
+  - If netBalance < 0 (debtor):
+    ```text
+    💰 Your Balance
+
+    🔴 You owe: ₹100.00
+
+    • Paid: ₹0.00
+    • Your share: ₹100.00
+    • Net: -₹100.00
+    ```
+  - If netBalance === 0 (settled):
+    ```text
+    💰 Your Balance
+
+    ⚪ You're all settled up!
+
+    • Paid: ₹100.00
+    • Your share: ₹100.00
+    • Net: ₹0.00
+    ```
+
+### 5.2 Group Summary (`/summary` or `action:summary`)
+- **Triggers:**
+  - Slash command: `/summary` (in group/supergroup)
+  - Inline button: `[📊 Summary]` (`action:summary`) from group menu
+- **Guard:**
+  - If triggered in a private chat: returns `⚠️ Group summary is available inside a group.`
+  - Validates user is an active member of the group.
+- **Output:**
+  - If no expenses recorded:
+    ```text
+    📊 Group Summary
+
+    No expenses recorded yet in this group.
+
+    Type /add to record the first expense!
+    ```
+  - With expenses:
+    ```text
+    📊 Group Summary
+
+    🟢 Alice receives ₹200.00
+    🟢 David receives ₹50.00
+    🔴 Bob owes ₹150.00
+    🔴 Charlie owes ₹100.00
+
+    ⚪ Settled:
+    • Frank
+
+    💰 Total expenses: ₹500.00 (3 expenses)
+    ```
+  - **Notice:** Strictly presents balance states without settlement instructions (who pays whom is deferred to Phase 7).
+
+---
+
+## 6. Callback Query Protocol Reference
 
 | Callback Data Pattern | Handler | Action Description |
 | :--- | :--- | :--- |
 | `action:add_expense` | `router.ts` | Entry point from group menu to start `/add` flow |
+| `action:my_balance` | `router.ts` | Displays calling user's personal balance in current group |
+| `action:summary` | `router.ts` | Displays full group balance summary breakdown |
 | `exp:payer:me` | `expense-callbacks.ts` | Assigns current user as payer |
 | `exp:payer:pick` | `expense-callbacks.ts` | Renders list of group members to select payer |
 | `exp:payer:set:<userId>` | `expense-callbacks.ts` | Assigns selected member as payer |
@@ -249,12 +326,16 @@ Expense creation in BuddySplitter is an interactive multi-step wizard conducted 
 | `exp:split:equal` | `expense-callbacks.ts` | Calculates equal split and shows confirmation |
 | `exp:split:custom` | `expense-callbacks.ts` | Prompts user for custom amounts per participant |
 | `exp:split:percent` | `expense-callbacks.ts` | Prompts user for percentage per participant |
+| `exp:split:shares` | `shares-callbacks.ts` | Starts interactive shares allocation stepper |
+| `exp:shares:inc:<idx>` | `shares-callbacks.ts` | Increments shares for participant at index |
+| `exp:shares:dec:<idx>` | `shares-callbacks.ts` | Decrements shares for participant at index (min 1) |
+| `exp:shares:done` | `shares-callbacks.ts` | Confirms shares allocation and proceeds to confirmation |
 | `exp:confirm:save` | `expense-callbacks.ts` | Idempotently persists expense and splits to database |
 | `exp:cancel` | `expense-callbacks.ts` | Cancels draft and deletes temporary state |
 
 ---
 
-## 5. Security & Validation Checklist
+## 7. Security & Validation Checklist
 
 - [x] BigInt Telegram ID safe representation.
 - [x] Money stored exclusively in integer minor units (paise). Zero floating point operations in database or calculations.
@@ -263,3 +344,5 @@ Expense creation in BuddySplitter is an interactive multi-step wizard conducted 
 - [x] Orphan expense protection via automatic rollback on split insert failure.
 - [x] 15-minute TTL per draft to prevent memory leaks.
 - [x] Isolated state keys preventing cross-user race conditions.
+- [x] Mathematical conservation invariant: `SUM(netBalance) === 0` audited across every balance calculation.
+
