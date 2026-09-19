@@ -3,8 +3,11 @@ import { BotServices } from '../../modules/services';
 import { formatPaise } from '../../shared/currency';
 import { buildPaymentsHistoryKeyboard } from '../keyboards/settlement.keyboard';
 import { logger } from '../../shared/logger';
+import { safeErrorMessage } from '../../shared/errors';
+import { checkUserRateLimit, RATE_LIMIT_EXCEEDED_MESSAGE } from '../../shared/rate-limiter';
 
 function formatDate(isoString: string): string {
+
   try {
     const d = new Date(isoString);
     return d.toLocaleString('en-IN', {
@@ -30,7 +33,14 @@ export function createPaymentsCommandHandler(services: BotServices) {
       return;
     }
 
+    const rateCheck = checkUserRateLimit(ctx.from.id, 'QUERY');
+    if (!rateCheck.allowed) {
+      await ctx.reply(RATE_LIMIT_EXCEEDED_MESSAGE, { parse_mode: 'Markdown' });
+      return;
+    }
+
     try {
+
       const { payments } =
         await services.settlementService.getRecentPaymentsForTelegram(
           ctx.chat.id,
@@ -68,7 +78,8 @@ export function createPaymentsCommandHandler(services: BotServices) {
       });
     } catch (error: any) {
       logger.error('Failed to get payment history:', error);
-      await ctx.reply(`⚠️ ${error.message || 'Unable to retrieve payment history at this time.'}`);
+      await ctx.reply(`⚠️ ${safeErrorMessage(error, 'Unable to retrieve payment history at this time.')}`);
     }
   };
 }
+

@@ -67,4 +67,28 @@ export class GroupMemberRepository {
     if (error) throw error;
     return data;
   }
+
+  async anonymizeMemberForUser(userId: string): Promise<void> {
+    const { error } = await this.client
+      .from('group_members')
+      .update({
+        display_name: 'Former Member',
+        is_active: false,
+      })
+      .eq('user_id', userId);
+
+    if (error) throw error;
+  }
+
+  async countGroupsByUserId(userId: string): Promise<number> {
+    const { count, error } = await this.client
+      .from('group_members')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('is_active', true);
+
+    if (error) throw error;
+    return count ?? 0;
+  }
 }
+

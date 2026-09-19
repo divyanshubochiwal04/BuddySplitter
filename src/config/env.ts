@@ -9,7 +9,9 @@ export const envSchema = z.object({
   SUPABASE_URL: z.string().url('SUPABASE_URL must be a valid URL'),
   SUPABASE_ANON_KEY: z.string().min(1, 'SUPABASE_ANON_KEY is required'),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, 'SUPABASE_SERVICE_ROLE_KEY cannot be empty if provided').optional(),
+  PRIVACY_POLICY_URL: z.string().url('PRIVACY_POLICY_URL must be a valid URL').optional(),
 });
+
 
 export type Env = z.infer<typeof envSchema>;
 

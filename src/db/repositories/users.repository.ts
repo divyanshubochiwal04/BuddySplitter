@@ -50,4 +50,44 @@ export class UserRepository {
     if (error) throw error;
     return data;
   }
+
+  async anonymizeUser(telegramUserId: number): Promise<UserRow | null> {
+    const { data, error } = await this.client
+      .from('users')
+      .update({
+        first_name: 'Deleted User',
+        last_name: null,
+        username: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('telegram_user_id', telegramUserId)
+      .select()
+      .maybeSingle();
+
+    if (error) throw error;
+    return data;
+  }
+
+  async countExpensesCreatedByUser(userId: string): Promise<number> {
+    const { count, error } = await this.client
+      .from('expenses')
+      .select('*', { count: 'exact', head: true })
+      .eq('created_by', userId)
+      .is('deleted_at', null);
+
+    if (error) throw error;
+    return count ?? 0;
+  }
+
+  async countExpensesPaidByUser(userId: string): Promise<number> {
+    const { count, error } = await this.client
+      .from('expenses')
+      .select('*', { count: 'exact', head: true })
+      .eq('paid_by', userId)
+      .is('deleted_at', null);
+
+    if (error) throw error;
+    return count ?? 0;
+  }
 }
+

@@ -3,6 +3,8 @@ import { BotServices } from '../../modules/services';
 import { formatUserSettlementSummary } from '../../modules/settlements/settlement.formatter';
 import { buildUserSettlementKeyboard } from '../keyboards/settlement.keyboard';
 import { logger } from '../../shared/logger';
+import { safeErrorMessage } from '../../shared/errors';
+import { checkUserRateLimit, RATE_LIMIT_EXCEEDED_MESSAGE } from '../../shared/rate-limiter';
 
 export function createSettleCommandHandler(services: BotServices) {
   return async (ctx: Context): Promise<void> => {
@@ -10,6 +12,12 @@ export function createSettleCommandHandler(services: BotServices) {
 
     if (!isGroup || !ctx.chat || !ctx.from) {
       await ctx.reply('⚠️ Settlement is available inside a group.');
+      return;
+    }
+
+    const rateCheck = checkUserRateLimit(ctx.from.id, 'QUERY');
+    if (!rateCheck.allowed) {
+      await ctx.reply(RATE_LIMIT_EXCEEDED_MESSAGE, { parse_mode: 'Markdown' });
       return;
     }
 
@@ -32,7 +40,8 @@ export function createSettleCommandHandler(services: BotServices) {
       });
     } catch (error: any) {
       logger.error('Failed to get settlement recommendations:', error);
-      await ctx.reply(`⚠️ ${error.message || 'Unable to retrieve settlement plan at this time.'}`);
+      await ctx.reply(`⚠️ ${safeErrorMessage(error, 'Unable to retrieve settlement plan at this time.')}`);
     }
   };
 }
+

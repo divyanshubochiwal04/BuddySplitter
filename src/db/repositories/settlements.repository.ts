@@ -94,4 +94,15 @@ export class SettlementRepository {
     if (error) throw error;
     return data;
   }
+
+  async countSettlementsByUser(userId: string): Promise<number> {
+    const { count, error } = await this.client
+      .from('settlements')
+      .select('*', { count: 'exact', head: true })
+      .or(`from_user_id.eq.${userId},to_user_id.eq.${userId}`);
+
+    if (error) throw error;
+    return count ?? 0;
+  }
 }
+

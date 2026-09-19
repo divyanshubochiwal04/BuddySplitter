@@ -3,6 +3,8 @@ import { BotServices } from '../../modules/services';
 import { formatExpenseHistoryMessage } from '../messages/expense-management';
 import { buildExpenseHistoryKeyboard } from '../keyboards/expense-management.keyboard';
 import { logger } from '../../shared/logger';
+import { safeErrorMessage } from '../../shared/errors';
+import { checkUserRateLimit, RATE_LIMIT_EXCEEDED_MESSAGE } from '../../shared/rate-limiter';
 
 export function createExpensesCommandHandler(services: BotServices) {
   return async (ctx: Context): Promise<void> => {
@@ -10,6 +12,12 @@ export function createExpensesCommandHandler(services: BotServices) {
 
     if (!isGroup || !ctx.chat || !ctx.from) {
       await ctx.reply('⚠️ Expense history is only available inside a group.');
+      return;
+    }
+
+    const rateCheck = checkUserRateLimit(ctx.from.id, 'QUERY');
+    if (!rateCheck.allowed) {
+      await ctx.reply(RATE_LIMIT_EXCEEDED_MESSAGE, { parse_mode: 'Markdown' });
       return;
     }
 
@@ -33,7 +41,8 @@ export function createExpensesCommandHandler(services: BotServices) {
       });
     } catch (error: any) {
       logger.error('Failed to get expense history:', error);
-      await ctx.reply(`⚠️ ${error.message || 'Unable to retrieve expense history at this time.'}`);
+      await ctx.reply(`⚠️ ${safeErrorMessage(error, 'Unable to retrieve expense history at this time.')}`);
     }
   };
 }
+

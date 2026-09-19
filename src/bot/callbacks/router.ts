@@ -22,6 +22,11 @@ import { handlePaymentCallback } from './payment-callbacks';
 import { startExpenseFlow } from '../../modules/expenses/expense-flow';
 import { logger } from '../../shared/logger';
 import { formatPaise } from '../../shared/currency';
+import { expenseStateManager } from '../../modules/expenses/expense-state';
+import { paymentStateManager } from '../../modules/settlements/payment-state';
+import { expenseEditStateManager } from '../../modules/expenses/expense-edit-state';
+import { checkUserRateLimit } from '../../shared/rate-limiter';
+
 
 
 const callbackDataSchema = z.string().min(1).max(64);
@@ -317,7 +322,83 @@ export function createCallbackRouter(services: BotServices) {
         return;
       }
 
+      // Data deletion / anonymization callbacks
+      if (data.startsWith('deldata:confirm:')) {
+        const targetUserIdStr = data.replace('deldata:confirm:', '');
+        const targetUserId = parseInt(targetUserIdStr, 10);
+
+        if (!ctx.from?.id || ctx.from.id !== targetUserId) {
+          await ctx.answerCallbackQuery({
+            text: '⚠️ You cannot confirm data deletion for another user.',
+            show_alert: true,
+          });
+          return;
+        }
+
+        const rateCheck = checkUserRateLimit(targetUserId, 'MUTATION');
+        if (!rateCheck.allowed) {
+          await ctx.answerCallbackQuery({
+            text: '⏳ Please wait a moment before trying again.',
+            show_alert: true,
+          });
+          return;
+        }
+
+        await ctx.answerCallbackQuery();
+
+        if (ctx.chat?.id) {
+          expenseStateManager.clearState(ctx.chat.id, targetUserId);
+          paymentStateManager.clearState(ctx.chat.id, targetUserId);
+          expenseEditStateManager.clearState(ctx.chat.id, targetUserId);
+        }
+
+        try {
+          await services.userService.anonymizeUser(targetUserId);
+          const successMsg = [
+            '✅ *Data Anonymization Complete*',
+            '',
+            'Your personal identity profile has been permanently anonymized in BuddySplitter.',
+            'Any past shared group transactions and split ratios have been preserved without personal identifiers to maintain shared group accounting integrity.',
+            '',
+            'Thank you for using BuddySplitter!',
+          ].join('\n');
+
+          try {
+            await ctx.editMessageText(successMsg, { parse_mode: 'Markdown' });
+          } catch {
+            await ctx.reply(successMsg, { parse_mode: 'Markdown' });
+          }
+        } catch (err: any) {
+          logger.error('Failed to anonymize user data:', err);
+          await ctx.reply('⚠️ An unexpected error occurred while anonymizing your data. Please try again later.');
+        }
+        return;
+      }
+
+      if (data.startsWith('deldata:cancel:')) {
+        const targetUserIdStr = data.replace('deldata:cancel:', '');
+        const targetUserId = parseInt(targetUserIdStr, 10);
+
+        if (!ctx.from?.id || ctx.from.id !== targetUserId) {
+          await ctx.answerCallbackQuery({
+            text: '⚠️ You cannot cancel this action for another user.',
+            show_alert: true,
+          });
+          return;
+        }
+
+        await ctx.answerCallbackQuery();
+        const cancelMsg = '❌ *Data deletion cancelled.*\n\nYour profile records remain intact.';
+        try {
+          await ctx.editMessageText(cancelMsg, { parse_mode: 'Markdown' });
+        } catch {
+          await ctx.reply(cancelMsg, { parse_mode: 'Markdown' });
+        }
+        return;
+      }
+
       if (data === 'action:cancel') {
+
         await ctx.answerCallbackQuery({ text: 'Action cancelled.' });
         await ctx.reply('❌ Action cancelled.');
         return;

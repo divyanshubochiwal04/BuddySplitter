@@ -1,4 +1,7 @@
 import { UserRepository } from '../../db/repositories/users.repository';
+import { GroupMemberRepository } from '../../db/repositories/group-members.repository';
+import { ExpenseRepository } from '../../db/repositories/expenses.repository';
+import { SettlementRepository } from '../../db/repositories/settlements.repository';
 import { User } from './index';
 
 export interface TelegramUserData {
@@ -8,8 +11,25 @@ export interface TelegramUserData {
   username?: string | null;
 }
 
+export interface UserDataExport {
+  telegramUserId: number;
+  name: string;
+  username: string | null;
+  registeredAt: Date;
+  activeGroupsCount: number;
+  expensesCreatedCount: number;
+  expensesPaidCount: number;
+  settlementsCount: number;
+}
+
 export class UserService {
-  constructor(private readonly userRepo: UserRepository) {}
+  constructor(
+    private readonly userRepo: UserRepository,
+    private readonly groupMemberRepo?: GroupMemberRepository,
+    private readonly expenseRepo?: ExpenseRepository,
+    private readonly settlementRepo?: SettlementRepository
+  ) {}
+
 
   async registerUser(data: TelegramUserData): Promise<User> {
     const row = await this.userRepo.upsertByTelegramId({
@@ -59,4 +79,60 @@ export class UserService {
       updatedAt: new Date(row.updated_at),
     };
   }
+
+  async anonymizeUser(telegramUserId: number): Promise<{ success: boolean; message: string }> {
+    const user = await this.userRepo.findByTelegramId(telegramUserId);
+    if (!user) {
+      return { success: false, message: 'User record not found.' };
+    }
+
+    // 1. Anonymize user personal identity
+    await this.userRepo.anonymizeUser(telegramUserId);
+
+    // 2. Anonymize group memberships
+    if (this.groupMemberRepo) {
+      await this.groupMemberRepo.anonymizeMemberForUser(user.id);
+    }
+
+    return {
+      success: true,
+      message:
+        'Your personal profile data has been safely anonymized. Financial transaction history has been preserved without personal identifiers to maintain shared group accounting integrity.',
+    };
+  }
+
+  async getUserDataExport(telegramUserId: number): Promise<UserDataExport | null> {
+    const user = await this.userRepo.findByTelegramId(telegramUserId);
+    if (!user) return null;
+
+    const activeGroupsCount = this.groupMemberRepo
+      ? await this.groupMemberRepo.countGroupsByUserId(user.id)
+      : 0;
+
+    const expensesCreatedCount = this.expenseRepo
+      ? await this.userRepo.countExpensesCreatedByUser(user.id)
+      : 0;
+
+    const expensesPaidCount = this.expenseRepo
+      ? await this.userRepo.countExpensesPaidByUser(user.id)
+      : 0;
+
+    const settlementsCount = this.settlementRepo
+      ? await this.settlementRepo.countSettlementsByUser(user.id)
+      : 0;
+
+    const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.first_name;
+
+    return {
+      telegramUserId: user.telegram_user_id,
+      name: fullName,
+      username: user.username,
+      registeredAt: new Date(user.created_at),
+      activeGroupsCount,
+      expensesCreatedCount,
+      expensesPaidCount,
+      settlementsCount,
+    };
+  }
 }
+
