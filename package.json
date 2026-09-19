@@ -5,6 +5,8 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
+    "postinstall": "tsc",
+    "prestart": "npm run build",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -16,14 +18,14 @@
   "type": "commonjs",
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",
+    "@types/node": "^26.6.1",
     "dotenv": "^18.0.0",
     "grammy": "^1.46.0",
+    "typescript": "^5.9.3",
     "zod": "^4.6.5"
   },
   "devDependencies": {
     "@rollup/wasm-node": "^4.63.3",
-    "@types/node": "^26.6.1",
-    "typescript": "^5.9.3",
     "vitest": "^3.2.7"
   },
   "overrides": {

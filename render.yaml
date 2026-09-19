@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: buddysplitter
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: TELEGRAM_WEBHOOK_PATH
+        value: /telegram/webhook
