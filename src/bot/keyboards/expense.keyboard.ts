@@ -57,17 +57,42 @@ export function buildParticipantsSelectionKeyboard(
 export function buildSplitTypeKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
     .text('⚖️ Equal', 'split:equal')
-    .text('💰 Custom', 'split:custom')
+    .text('💰 Amounts', 'split:custom')
     .row()
     .text('📊 Percentage', 'split:percentage')
+    .text('🔢 Shares', 'split:shares')
     .row()
     .text('❌ Cancel', 'exp:cancel');
+}
+
+export function buildSharesKeyboard(
+  members: MemberOption[],
+  sharesMap: Record<string, number>
+): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  for (const member of members) {
+    const shares = sharesMap[member.userId] ?? 1;
+    keyboard.text(`👤 ${member.name}`, 'share:noop').row();
+    keyboard
+      .text('➖', `share:dec:${member.userId}`)
+      .text(`${shares} ${shares === 1 ? 'share' : 'shares'}`, 'share:noop')
+      .text('➕', `share:inc:${member.userId}`)
+      .row();
+  }
+
+  keyboard.text('➡️ Continue', 'share:continue').text('❌ Cancel', 'exp:cancel');
+  return keyboard;
 }
 
 export function buildExpenseConfirmationKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
     .text('✅ Save Expense', 'exp:confirm')
     .row()
-    .text('✏️ Edit', 'exp:edit')
+    .text('✏️ Change Split', 'exp:change_split')
+    .row()
+    .text('👥 Change Participants', 'exp:change_participants')
+    .text('✏️ Change Payer', 'exp:change_payer')
+    .row()
     .text('❌ Cancel', 'exp:cancel');
 }

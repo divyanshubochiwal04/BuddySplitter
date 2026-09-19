@@ -168,26 +168,46 @@ Expense creation in BuddySplitter is an interactive multi-step wizard conducted 
   - Total allocated paise equals `totalAmount` with zero rounding loss.
 - **Transition:** Advances to **Confirmation**.
 
+#### D. Shares Split (`split:shares`)
+- **Prompt:** `"🔢 Give each person their number of shares."`
+- **Interactive Stepper UI:**
+  - Each participant has a stepper row: `[➖]` `[ N shares ]` `[➕]`.
+  - Default: 1 share per participant.
+  - Decrement is strictly bounded at minimum 1 share (`share:dec:<userId>`).
+  - Increment increments by 1 (`share:inc:<userId>`).
+- **Deterministic Largest Remainder Rounding:**
+  1. Floor allocation: `floorAmount_i = floor((totalAmount * s_i) / totalShares)`.
+  2. Exact integer remainder: `remainder_i = (totalAmount * s_i) % totalShares`. Zero floating point operations.
+  3. Unallocated paise: `totalAmount - sum(floorAmounts)`.
+  4. Rank descending by `remainder_i`, breaking ties deterministically by original index.
+  5. Top remainder participants receive +1 paise until unallocated paise is exhausted.
+- **Invariant Guarantee:** `sum(all participant paise) === totalAmount`.
+- **Transition:** On `[➡️ Continue]` (`share:continue`), advances to **Confirmation**.
+
 ---
 
-### Step 6: Confirmation Preview
+### Step 6: Confirmation Preview & Dynamic Modification
+
 - **Rendered Message:**
   ```text
-  📋 Expense Summary
+  🧾 Dinner
 
-  📝 Description: Dinner at Olive Bistro
-  💰 Total Amount: ₹2,400.00
-  👤 Paid By: John Doe
-  👥 Split (Equal):
-    • John Doe: ₹800.00
-    • Jane Smith: ₹800.00
-    • Bob: ₹800.00
+  💰 Total: ₹3,000.00
+  👤 Paid by: Dev
 
-  Please confirm to record this expense.
+  Split:
+  • Dev — ₹1,500.00 (2 shares)
+  • Rahul — ₹750.00 (1 share)
+  • Aman — ₹750.00 (1 share)
+
+  Method: 🔢 Shares
   ```
 - **Inline Controls:**
-  - `[✅ Confirm & Save]` (`exp:confirm:save`)
-  - `[❌ Cancel]` (`exp:cancel`)
+  - `[✅ Save Expense]` (`exp:confirm`): Idempotently persists expense to database.
+  - `[✏️ Change Split]` (`exp:change_split`): Returns to split selection without losing description, amount, payer, or participants. Discards previous splits and recalculates from original total with zero accumulated error.
+  - `[👥 Change Participants]` (`exp:change_participants`): Modifies participant checkboxes. Discards old split calculations and requires fresh split calculation upon continuation.
+  - `[✏️ Change Payer]` (`exp:change_payer`): Selects a different payer while keeping participants independent.
+  - `[❌ Cancel]` (`exp:cancel`): Aborts draft and frees session.
 
 ---
 

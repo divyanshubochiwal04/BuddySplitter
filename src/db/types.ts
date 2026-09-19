@@ -2,7 +2,7 @@
  * Database Types for BuddySplitter Supabase PostgreSQL Schema
  */
 
-export type SplitType = 'equal' | 'custom' | 'percentage';
+export type SplitType = 'equal' | 'custom' | 'percentage' | 'shares';
 export type SettlementStatus = 'pending' | 'paid' | 'cancelled';
 
 export type UserRow = {
@@ -128,6 +128,7 @@ export type ExpenseSplitRow = {
   user_id: string;
   amount: number; // Stored in minor units (paise)
   percentage: number | null;
+  shares: number | null;
   created_at: string;
 };
 
@@ -137,12 +138,14 @@ export type ExpenseSplitInsert = {
   user_id: string;
   amount: number; // minor units (paise)
   percentage?: number | null;
+  shares?: number | null;
   created_at?: string;
 };
 
 export type ExpenseSplitUpdate = {
   amount?: number;
   percentage?: number | null;
+  shares?: number | null;
 };
 
 export type SettlementRow = {

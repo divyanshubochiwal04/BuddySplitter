@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS expenses (
     currency VARCHAR(3) NOT NULL DEFAULT 'INR',
     paid_by UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     created_by UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-    split_type VARCHAR(20) NOT NULL CHECK (split_type IN ('equal', 'custom', 'percentage')),
+    split_type VARCHAR(20) NOT NULL CHECK (split_type IN ('equal', 'custom', 'percentage', 'shares')),
     expense_date TIMESTAMPTZ NOT NULL DEFAULT now(),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS expense_splits (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     amount BIGINT NOT NULL CHECK (amount >= 0), -- minor units (paise)
     percentage NUMERIC(5, 2) CHECK (percentage IS NULL OR (percentage >= 0 AND percentage <= 100)),
+    shares INTEGER CHECK (shares IS NULL OR shares > 0),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT uq_expense_splits_expense_user UNIQUE (expense_id, user_id)
 );

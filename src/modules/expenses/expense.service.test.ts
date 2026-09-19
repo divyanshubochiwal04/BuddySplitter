@@ -79,8 +79,58 @@ describe('ExpenseService', () => {
         split_type: 'equal',
       }),
       expect.arrayContaining([
-        { user_id: 'usr-1', amount: 120000, percentage: null },
-        { user_id: 'usr-2', amount: 120000, percentage: null },
+        { user_id: 'usr-1', amount: 120000, percentage: null, shares: null },
+        { user_id: 'usr-2', amount: 120000, percentage: null, shares: null },
+      ])
+    );
+  });
+
+  it('saves shares split expense successfully with participant shares stored', async () => {
+    const { expenseRepo, groupMemberRepo } = createMocks();
+    (groupMemberRepo.findByGroupAndUser as any).mockResolvedValue({
+      user_id: 'usr-payer',
+      is_active: true,
+    });
+    (groupMemberRepo.findActiveMembersByGroupId as any).mockResolvedValue([
+      { user_id: 'usr-1', is_active: true },
+      { user_id: 'usr-2', is_active: true },
+      { user_id: 'usr-payer', is_active: true },
+    ]);
+
+    const sharesDraft: ExpenseDraft = {
+      chatId: -1001234567,
+      userId: 12345,
+      groupId: 'grp-1',
+      creatorUserId: 'usr-creator',
+      step: 'SAVING',
+      description: 'Dinner Party',
+      totalAmount: 300000,
+      payerUserId: 'usr-payer',
+      payerName: 'Dev',
+      participantUserIds: ['usr-1', 'usr-2'],
+      splitType: 'shares',
+      splits: [
+        { userId: 'usr-1', name: 'Alice', amount: 200000, shares: 2 },
+        { userId: 'usr-2', name: 'Bob', amount: 100000, shares: 1 },
+      ],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    (expenseRepo.createExpenseWithSplits as any).mockResolvedValue({ id: 'exp-shares-123' });
+
+    const service = new ExpenseService(expenseRepo, groupMemberRepo);
+    const result = await service.createExpenseFromDraft(sharesDraft);
+
+    expect(result).toEqual({ id: 'exp-shares-123' });
+    expect(expenseRepo.createExpenseWithSplits).toHaveBeenCalledWith(
+      expect.objectContaining({
+        split_type: 'shares',
+        total_amount: 300000,
+      }),
+      expect.arrayContaining([
+        { user_id: 'usr-1', amount: 200000, percentage: null, shares: 2 },
+        { user_id: 'usr-2', amount: 100000, percentage: null, shares: 1 },
       ])
     );
   });

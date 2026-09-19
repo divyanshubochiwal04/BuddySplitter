@@ -118,13 +118,30 @@ Financial accuracy is maintained strictly using integer minor units (paise: ₹1
 - **Percentage Split (`percentage.ts`):**
   - Implements the **Hare-Niemeyer / Largest Remainder Method**.
   - Calculates integer floor paise shares, ranks fractional remainders descending, and distributes leftover paise sequentially to avoid penny drift while totaling exactly 100%.
+- **Shares Split (`shares.ts`):**
+  - Implements the **Largest Remainder Method** for proportional share allocations ($s_1, s_2, \dots, s_n$).
+  - Operates strictly with integer math: `floorAmount_i = floor((totalAmount * s_i) / totalShares)`, remainder integer `remainder_i = (totalAmount * s_i) % totalShares`.
+  - Zero floating-point arithmetic throughout the pipeline.
+  - Distributes remaining paise to highest integer remainder participants with deterministic tie-breaking by input index.
+  - Mathematical Invariant: `sum(all participant split amounts) === totalAmount` guaranteed across any combination.
 
 ---
 
-## 8. Atomicity and Idempotency Protections
+## 8. Dynamic Modification & Payer Independence
+
+BuddySplitter enables full interactive control before persistence:
+
+- **Split Method Switching (`exp:change_split`):** Allows returning to split selection from the confirmation preview. Preserves description, total amount, payer, and participant list, while discarding old splits and recalculating from the original total without accumulated rounding errors.
+- **Participant Modification (`exp:change_participants`):** Allows adjusting participant checkboxes. Discards old split calculations and requires fresh split calculation upon continuation.
+- **Payer Independence (`exp:change_payer`):** The payer is decoupled from the participant list. A payer can pay for an expense without being a participant (e.g. paying on behalf of friends).
+
+---
+
+## 9. Atomicity and Idempotency Protections
 
 Financial operations enforce strict correctness guarantees:
 
-- **Idempotent Submission:** When the confirmation button (`[✅ Confirm & Save]`) is clicked, the draft step immediately flips to `SAVING`. Repeated button presses or network retries are safely ignored.
+- **Idempotent Submission:** When the confirmation button (`[✅ Save Expense]`) is clicked, the draft step immediately flips to `SAVING`. Repeated button presses or network retries are safely ignored.
 - **Rollback on Partial Failure:** In the event of a failure during batch insertion into `expense_splits`, the repository layer invokes a compensating delete on the newly created `expenses` row, preventing orphaned records.
+
 

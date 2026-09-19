@@ -25,28 +25,39 @@ export function formatSplitTypePrompt(amountPaise: number): string {
   return `⚖️ *How should ${formatPaise(amountPaise)} be split?*`;
 }
 
+export const EXPENSE_SHARES_PROMPT =
+  `🔢 *Give each person their number of shares.*\n\n` +
+  `_Tap ➖ or ➕ to adjust shares for each participant:_`;
+
 export function formatExpenseConfirmation(draft: ExpenseDraft): string {
   const typeLabel =
     draft.splitType === 'equal'
-      ? 'Equal'
+      ? '⚖️ Equal'
       : draft.splitType === 'custom'
-      ? 'Custom'
-      : 'Percentage';
+      ? '💰 Custom'
+      : draft.splitType === 'percentage'
+      ? '📊 Percentage'
+      : '🔢 Shares';
 
   const splitLines = draft.splits
     .map((s) => {
-      const percentageText = s.percentage !== null && s.percentage !== undefined ? ` (${s.percentage}%)` : '';
-      return `• ${s.name || 'Member'} — ${formatPaise(s.amount)}${percentageText}`;
+      let extra = '';
+      if (s.shares !== null && s.shares !== undefined) {
+        extra = ` (${s.shares} ${s.shares === 1 ? 'share' : 'shares'})`;
+      } else if (s.percentage !== null && s.percentage !== undefined) {
+        extra = ` (${s.percentage}%)`;
+      }
+      return `• ${s.name || 'Member'} — ${formatPaise(s.amount)}${extra}`;
     })
     .join('\n');
 
   return (
-    `🧾 *Expense Confirmation*\n\n` +
-    `🍕 *${draft.description}*\n` +
+    `🧾 *${draft.description}*\n\n` +
     `💰 *Total:* ${formatPaise(draft.totalAmount || 0)}\n` +
     `👤 *Paid by:* ${draft.payerName || 'Payer'}\n\n` +
-    `*Split (${typeLabel}):*\n` +
-    `${splitLines}`
+    `*Split:*\n` +
+    `${splitLines}\n\n` +
+    `*Method:* ${typeLabel}`
   );
 }
 

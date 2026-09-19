@@ -8,7 +8,7 @@
 [![Node.js](https://img.shields.io/badge/Node.js-20+-green?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![grammY](https://img.shields.io/badge/grammY-Telegram_Bot-2489FF?style=for-the-badge&logo=telegram&logoColor=white)](https://grammy.dev/)
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com/)
-[![Vitest](https://img.shields.io/badge/Tests-96%20Passed-6E9F18?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev/)
+[![Vitest](https://img.shields.io/badge/Tests-122%20Passed-6E9F18?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
 <p align="center">
@@ -41,7 +41,7 @@ Unlike traditional split tools (Splitwise, spreadsheets, web apps), BuddySplitte
 | :--- | :--- |
 | ⚡ **Telegram-Native UX** | Interactive inline keyboards, menus, and real-time group notifications. |
 | 🤖 **Interactive Multi-Step Wizard** | Conversational flow for logging expenses: Description ➔ Amount ➔ Payer ➔ Participants ➔ Split Mode ➔ Confirmation. |
-| ⚖️ **3 Split Engines** | **Equal Split** (remainder paise distribution), **Custom Exact Amounts** (real-time validation), and **Percentage Split** (Hare-Niemeyer largest remainder method). |
+| ⚖️ **4 Split Engines** | **Equal Split** (remainder distribution), **Custom Amounts** (real-time validation), **Percentage** (Hare-Niemeyer method), and **Shares** (deterministic largest remainder). |
 | 💎 **Zero Float Drift** | All currency operations are calculated in integer minor units (paise). ₹1500.50 is handled as `150050` paise. |
 | 🔒 **State Isolation & Concurrency** | In-memory session state scoped by composite key `${chatId}:${userId}` with a 15-minute TTL eviction, allowing multiple members to log expenses simultaneously. |
 | 🛡️ **Atomicity & Idempotency** | Double-tap prevention using transient `SAVING` state lock; automatic compensating rollback deletion if split persistence fails. |
@@ -293,8 +293,8 @@ npm test
  ✓ src/bot/keyboards/keyboards.test.ts (4 tests)
  ✓ src/bot/bot.test.ts (1 test)
 
- Test Files  23 passed (23)
-      Tests  96 passed (96)
+ Test Files  25 passed (25)
+      Tests  122 passed (122)
 ```
 
 ---
@@ -305,7 +305,7 @@ npm test
 - [x] **Phase 2: Database Layer** — Supabase PostgreSQL schema with 6 tables, integer minor-unit paise, repository patterns.
 - [x] **Phase 3: Telegram Core** — User/group auto-registration, interactive `/start`, `/help`, `/members`, callback router.
 - [x] **Phase 4: Expense Flow** — Conversational wizard, 3 split engines (Equal, Custom, Hare-Niemeyer Percentage), idempotent lock, compensating rollback.
-- [ ] **Phase 5: Advanced Splits** — Share-based split (`/split shares`), unequal preset distributions.
+- [x] **Phase 5: Advanced Splits** — Share-based split (`shares` split type) with dynamic stepper UI, deterministic largest remainder rounding, participant modification, and split method switching.
 - [ ] **Phase 6: Balance Engine** — Member net balances calculation, `/balances`, and `/mybalance`.
 - [ ] **Phase 7: Settlement Engine** — Debt simplification algorithm (min-cash-flow graph solver), `/settle`.
 - [ ] **Phase 8: Repayments** — Record member-to-member repayments (`/pay`, `/settled`), payment audit log.

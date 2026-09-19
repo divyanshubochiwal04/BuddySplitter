@@ -80,6 +80,7 @@ export class ExpenseService {
         user_id: s.userId,
         amount: s.amount,
         percentage: s.percentage ?? null,
+        shares: s.shares ?? null,
       }))
     );
   }

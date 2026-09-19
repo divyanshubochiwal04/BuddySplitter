@@ -5,6 +5,9 @@ import {
   buildBackRow,
   buildCancelRow,
   buildBackAndCancelRow,
+  buildSplitTypeKeyboard,
+  buildSharesKeyboard,
+  buildExpenseConfirmationKeyboard,
 } from './index';
 
 describe('Keyboard Builders', () => {
@@ -54,5 +57,57 @@ describe('Keyboard Builders', () => {
 
     const combinedKb = buildBackAndCancelRow('menu:group', 'action:cancel');
     expect(combinedKb.inline_keyboard[0]).toHaveLength(2);
+  });
+
+  it('builds split type keyboard with Equal, Amounts, Percentage, and Shares options', () => {
+    const splitKb = buildSplitTypeKeyboard();
+    const buttons = splitKb.inline_keyboard.flat();
+
+    const splitEqual = buttons.find((b) => 'callback_data' in b && b.callback_data === 'split:equal');
+    const splitCustom = buttons.find((b) => 'callback_data' in b && b.callback_data === 'split:custom');
+    const splitPercentage = buttons.find((b) => 'callback_data' in b && b.callback_data === 'split:percentage');
+    const splitShares = buttons.find((b) => 'callback_data' in b && b.callback_data === 'split:shares');
+
+    expect(splitEqual).toBeDefined();
+    expect(splitCustom).toBeDefined();
+    expect(splitPercentage).toBeDefined();
+    expect(splitShares).toBeDefined();
+    expect(splitShares?.text).toContain('Shares');
+  });
+
+  it('builds shares stepper keyboard for participants with +/- and continue buttons', () => {
+    const members = [
+      { userId: 'u1', name: 'Dev' },
+      { userId: 'u2', name: 'Rahul' },
+    ];
+    const sharesMap = { u1: 2, u2: 1 };
+
+    const sharesKb = buildSharesKeyboard(members, sharesMap);
+    const buttons = sharesKb.inline_keyboard.flat();
+
+    // Contains dec and inc buttons for u1 and u2
+    expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'share:dec:u1')).toBe(true);
+    expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'share:inc:u1')).toBe(true);
+    expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'share:dec:u2')).toBe(true);
+    expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'share:inc:u2')).toBe(true);
+
+    // Displays current share counts
+    expect(buttons.some((b) => b.text === '2 shares')).toBe(true);
+    expect(buttons.some((b) => b.text === '1 share')).toBe(true);
+
+    // Contains continue and cancel
+    expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'share:continue')).toBe(true);
+    expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'exp:cancel')).toBe(true);
+  });
+
+  it('builds confirmation keyboard with Change Split, Change Participants, and Change Payer', () => {
+    const confKb = buildExpenseConfirmationKeyboard();
+    const buttons = confKb.inline_keyboard.flat();
+
+    expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'exp:confirm')).toBe(true);
+    expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'exp:change_split')).toBe(true);
+    expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'exp:change_participants')).toBe(true);
+    expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'exp:change_payer')).toBe(true);
+    expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'exp:cancel')).toBe(true);
   });
 });

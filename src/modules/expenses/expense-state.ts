@@ -8,6 +8,7 @@ export type ExpenseFlowStep =
   | 'AWAITING_SPLIT_TYPE'
   | 'AWAITING_CUSTOM_SPLIT'
   | 'AWAITING_PERCENTAGE_SPLIT'
+  | 'AWAITING_SHARES_SPLIT'
   | 'AWAITING_CONFIRMATION'
   | 'SAVING';
 
@@ -16,6 +17,7 @@ export interface SplitEntry {
   name: string;
   amount: number; // minor units (paise)
   percentage?: number | null;
+  shares?: number | null;
 }
 
 export interface ExpenseDraft {
@@ -32,6 +34,7 @@ export interface ExpenseDraft {
   splitType?: SplitType;
   splits: SplitEntry[];
   customSplitIndex?: number; // Pointer for multi-step custom/percentage input
+  sharesMap?: Record<string, number>; // Mapping participant userId -> number of shares
   createdAt: number;
   updatedAt: number;
 }

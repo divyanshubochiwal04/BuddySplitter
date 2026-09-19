@@ -55,11 +55,17 @@
   - 23 unit test suites with 96 passing tests across repositories, services, split engines, validation, and conversational handlers.
 
 
-- [ ] **Phase 5: Advanced Splits**
-  - Exact amounts split (`/split exact`).
-  - Percentage-based split (`/split percent`).
-  - Share-based split (`/split shares`).
-  - Unequal participants selection.
+- [x] **Phase 5: Advanced Splits**
+  - Share-based split engine (`calculateSharesSplit`) using deterministic Largest Remainder Method rounding.
+  - Minor-unit integer paise precision with zero floating-point arithmetic.
+  - Invariant guarantee: `sum(split.amount) === totalAmount` across arbitrary amounts and shares.
+  - Interactive shares stepper UI (`[➖] N shares [➕]`) with minimum 1 share constraint and bounds checking.
+  - Confirmation screen controls: `[✏️ Change Split]`, `[👥 Change Participants]`, `[✏️ Change Payer]`.
+  - Split method switching with fresh calculation from original total amount and zero accumulated rounding error.
+  - Participant modification discarding old splits and requiring fresh allocation.
+  - Payer vs participant independence (payer can be outside participant list).
+  - PostgreSQL database migration (`supabase/migrations/20260919000001_add_shares_split_type.sql`) adding `'shares'` to `split_type` check constraint and optional `shares` column to `expense_splits`.
+  - 25 unit test suites with 122 passing tests covering mathematical edge cases, property invariants, and conversational flows.
 
 - [ ] **Phase 6: Balance Engine**
   - Group net balance calculation for every member.

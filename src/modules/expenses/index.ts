@@ -4,7 +4,7 @@
  * Encapsulates expense tracking, split allocations, and validation.
  */
 
-export type SplitType = 'equal' | 'custom' | 'percentage';
+export type SplitType = 'equal' | 'custom' | 'percentage' | 'shares';
 
 export interface ExpenseSplit {
   id: string;
@@ -12,6 +12,7 @@ export interface ExpenseSplit {
   userId: string;
   amount: number; // Stored in minor units (paise)
   percentage?: number | null;
+  shares?: number | null;
   createdAt: Date;
 }
 

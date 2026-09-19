@@ -2,9 +2,11 @@ import { Context } from 'grammy';
 import { BotServices } from '../../modules/services';
 import { expenseStateManager } from '../../modules/expenses/expense-state';
 import { calculateEqualSplit } from '../../modules/expenses/split/equal';
+import { handleSharesCallback } from './shares-callbacks';
 import {
   formatParticipantsPrompt,
   formatSplitTypePrompt,
+  formatPayerPrompt,
   formatExpenseConfirmation,
   formatExpenseSuccess,
   EXPENSE_DESCRIPTION_PROMPT,
@@ -44,7 +46,13 @@ export async function handleExpenseCallback(
 
   const draft = expenseStateManager.getState(chatId, userId);
   if (!draft) {
-    if (data.startsWith('payer:') || data.startsWith('part:') || data.startsWith('split:') || data.startsWith('exp:')) {
+    if (
+      data.startsWith('payer:') ||
+      data.startsWith('part:') ||
+      data.startsWith('split:') ||
+      data.startsWith('exp:') ||
+      data.startsWith('share:')
+    ) {
       await ctx.answerCallbackQuery({
         text: '⚠️ This expense session has expired. Type /add to start a new expense.',
         show_alert: true,
@@ -68,7 +76,12 @@ export async function handleExpenseCallback(
     );
   };
 
-  // 2. Payer Selection
+  // 2. Shares Split Handling (delegated)
+  if (data === 'split:shares' || data.startsWith('share:')) {
+    return handleSharesCallback(ctx, data, draft, services, getGroupMemberOptions);
+  }
+
+  // 3. Payer Selection
   if (data.startsWith('payer:select:')) {
     const selectedUserId = data.replace('payer:select:', '');
     const members = await getGroupMemberOptions();
@@ -79,18 +92,23 @@ export async function handleExpenseCallback(
       return true;
     }
 
-    const allMemberIds = members.map((m) => m.userId);
+    // Preserve existing participants if already chosen; otherwise default to all members
+    const selectedParticipantIds =
+      draft.participantUserIds && draft.participantUserIds.length > 0
+        ? draft.participantUserIds
+        : members.map((m) => m.userId);
+
     expenseStateManager.updateState(chatId, userId, {
       payerUserId: payer.userId,
       payerName: payer.name,
-      participantUserIds: allMemberIds, // Default to everyone selected
+      participantUserIds: selectedParticipantIds,
       step: 'AWAITING_PARTICIPANTS',
     });
 
     await ctx.answerCallbackQuery();
     await ctx.reply(formatParticipantsPrompt(draft.description!, draft.totalAmount!), {
       parse_mode: 'Markdown',
-      reply_markup: buildParticipantsSelectionKeyboard(members, new Set(allMemberIds)),
+      reply_markup: buildParticipantsSelectionKeyboard(members, new Set(selectedParticipantIds)),
     });
     return true;
   }
@@ -117,13 +135,17 @@ export async function handleExpenseCallback(
     return true;
   }
 
-  // 3. Participants Selection
+  // 4. Participants Selection
   if (data === 'part:everyone') {
     const members = await getGroupMemberOptions();
     const allUserIds = members.map((m) => m.userId);
 
     expenseStateManager.updateState(chatId, userId, {
       participantUserIds: allUserIds,
+      splits: [],
+      customSplitIndex: 0,
+      splitType: undefined,
+      sharesMap: undefined,
       step: 'AWAITING_SPLIT_TYPE',
     });
 
@@ -148,6 +170,10 @@ export async function handleExpenseCallback(
     const updatedIds = Array.from(currentSet);
     expenseStateManager.updateState(chatId, userId, {
       participantUserIds: updatedIds,
+      splits: [],
+      customSplitIndex: 0,
+      splitType: undefined,
+      sharesMap: undefined,
     });
 
     const members = await getGroupMemberOptions();
@@ -168,6 +194,10 @@ export async function handleExpenseCallback(
     }
 
     expenseStateManager.updateState(chatId, userId, {
+      splits: [],
+      customSplitIndex: 0,
+      splitType: undefined,
+      sharesMap: undefined,
       step: 'AWAITING_SPLIT_TYPE',
     });
 
@@ -179,7 +209,7 @@ export async function handleExpenseCallback(
     return true;
   }
 
-  // 4. Split Type
+  // 5. Split Type Selection
   if (data === 'split:equal') {
     const members = await getGroupMemberOptions();
     const splitsCalculated = calculateEqualSplit(draft.totalAmount!, draft.participantUserIds);
@@ -196,6 +226,7 @@ export async function handleExpenseCallback(
     const updatedDraft = expenseStateManager.updateState(chatId, userId, {
       splitType: 'equal',
       splits: fullSplits,
+      sharesMap: undefined,
       step: 'AWAITING_CONFIRMATION',
     });
 
@@ -217,6 +248,7 @@ export async function handleExpenseCallback(
       splitType: 'custom',
       splits: [],
       customSplitIndex: 0,
+      sharesMap: undefined,
       step: 'AWAITING_CUSTOM_SPLIT',
     });
 
@@ -239,6 +271,7 @@ export async function handleExpenseCallback(
       splitType: 'percentage',
       splits: [],
       customSplitIndex: 0,
+      sharesMap: undefined,
       step: 'AWAITING_PERCENTAGE_SPLIT',
     });
 
@@ -253,7 +286,62 @@ export async function handleExpenseCallback(
     return true;
   }
 
-  // 5. Confirmation
+  // 6. Change Split, Participants, or Payer
+  if (data === 'exp:change_split') {
+    expenseStateManager.updateState(chatId, userId, {
+      step: 'AWAITING_SPLIT_TYPE',
+      splits: [],
+      customSplitIndex: 0,
+      splitType: undefined,
+      sharesMap: undefined,
+    });
+    await ctx.answerCallbackQuery({ text: 'Select split method' });
+    await ctx.reply(formatSplitTypePrompt(draft.totalAmount!), {
+      parse_mode: 'Markdown',
+      reply_markup: buildSplitTypeKeyboard(),
+    });
+    return true;
+  }
+
+  if (data === 'exp:change_participants') {
+    expenseStateManager.updateState(chatId, userId, {
+      step: 'AWAITING_PARTICIPANTS',
+      splits: [],
+      customSplitIndex: 0,
+      splitType: undefined,
+      sharesMap: undefined,
+    });
+    const members = await getGroupMemberOptions();
+    await ctx.answerCallbackQuery({ text: 'Modify participants' });
+    await ctx.reply(formatParticipantsPrompt(draft.description!, draft.totalAmount!), {
+      parse_mode: 'Markdown',
+      reply_markup: buildParticipantsSelectionKeyboard(members, new Set(draft.participantUserIds)),
+    });
+    return true;
+  }
+
+  if (data === 'exp:change_payer') {
+    expenseStateManager.updateState(chatId, userId, {
+      step: 'AWAITING_PAYER',
+      splits: [],
+      customSplitIndex: 0,
+      splitType: undefined,
+      sharesMap: undefined,
+    });
+    const members = await getGroupMemberOptions();
+    const creator = members.find((m) => m.userId === draft.creatorUserId) || {
+      userId: draft.creatorUserId,
+      name: ctx.from.first_name,
+    };
+    await ctx.answerCallbackQuery({ text: 'Select payer' });
+    await ctx.reply(formatPayerPrompt(draft.totalAmount!), {
+      parse_mode: 'Markdown',
+      reply_markup: buildPayerSelectionKeyboard(creator, members),
+    });
+    return true;
+  }
+
+  // 7. Confirmation & Persistence
   if (data === 'exp:confirm') {
     // Idempotency: prevent double submissions
     if (draft.step === 'SAVING') {
@@ -294,6 +382,8 @@ export async function handleExpenseCallback(
       step: 'AWAITING_DESCRIPTION',
       splits: [],
       customSplitIndex: 0,
+      splitType: undefined,
+      sharesMap: undefined,
     });
     await ctx.answerCallbackQuery({ text: 'Editing expense...' });
     await ctx.reply(EXPENSE_DESCRIPTION_PROMPT, {
