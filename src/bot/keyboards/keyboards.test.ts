@@ -8,6 +8,8 @@ import {
   buildSplitTypeKeyboard,
   buildSharesKeyboard,
   buildExpenseConfirmationKeyboard,
+  buildChangeMenuKeyboard,
+  buildQuickAddKeyboard,
   buildExpenseHistoryKeyboard,
   buildExpenseDetailsKeyboard,
   buildDeleteConfirmationKeyboard,
@@ -116,14 +118,31 @@ describe('Keyboard Builders', () => {
     expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'exp:cancel')).toBe(true);
   });
 
-  it('builds confirmation keyboard with Change Split, Change Participants, and Change Payer', () => {
+  it('builds confirmation keyboard with Save Expense, Change, and Cancel', () => {
     const confKb = buildExpenseConfirmationKeyboard();
     const buttons = confKb.inline_keyboard.flat();
 
     expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'exp:confirm')).toBe(true);
-    expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'exp:change_split')).toBe(true);
-    expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'exp:change_participants')).toBe(true);
-    expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'exp:change_payer')).toBe(true);
+    expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'exp:change')).toBe(true);
+    expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'exp:cancel')).toBe(true);
+  });
+
+  it('builds change menu keyboard with all sub-change actions and back', () => {
+    const changeKb = buildChangeMenuKeyboard();
+    const buttons = changeKb.inline_keyboard.flat();
+
+    expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'exp:ch_desc')).toBe(true);
+    expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'exp:ch_amt')).toBe(true);
+    expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'exp:ch_payer')).toBe(true);
+    expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'exp:ch_part')).toBe(true);
+    expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'exp:ch_split')).toBe(true);
+    expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'exp:back_confirm')).toBe(true);
+  });
+
+  it('builds quick add keyboard with cancel button', () => {
+    const quickKb = buildQuickAddKeyboard();
+    const buttons = quickKb.inline_keyboard.flat();
+
     expect(buttons.some((b) => 'callback_data' in b && b.callback_data === 'exp:cancel')).toBe(true);
   });
 

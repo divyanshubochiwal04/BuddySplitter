@@ -25,8 +25,12 @@ describe('Callback Router', () => {
 
   it('routes action:add_expense to initiate expense flow', async () => {
     const mockServices = {
-      userService: { registerUser: vi.fn().mockResolvedValue({ id: 'u1' }) },
-      groupService: { registerGroup: vi.fn().mockResolvedValue({ id: 'g1' }), registerMember: vi.fn() },
+      userService: { registerUser: vi.fn().mockResolvedValue({ id: 'u1', firstName: 'Bob' }) },
+      groupService: {
+        registerGroup: vi.fn().mockResolvedValue({ id: 'g1' }),
+        registerMember: vi.fn(),
+        getActiveMembers: vi.fn().mockResolvedValue([{ userId: 'u1', displayName: 'Bob' }]),
+      },
     } as unknown as BotServices;
 
     const router = createCallbackRouter(mockServices);
@@ -45,7 +49,7 @@ describe('Callback Router', () => {
 
     expect(answerCallbackQueryMock).toHaveBeenCalled();
     expect(replyMock).toHaveBeenCalledWith(
-      expect.stringContaining('What was this expense for?'),
+      expect.stringContaining('Add Expense'),
       expect.anything()
     );
   });

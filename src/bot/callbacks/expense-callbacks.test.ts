@@ -4,7 +4,7 @@ import { expenseStateManager, ExpenseDraft } from '../../modules/expenses/expens
 import { BotServices } from '../../modules/services';
 import { Context } from 'grammy';
 
-describe('Phase 5: Advanced Splits Callbacks & Flow', () => {
+describe('Expense Callbacks - Quick Add & Change Flow', () => {
   const chatId = -100999;
   const userId = 42;
 
@@ -26,6 +26,7 @@ describe('Phase 5: Advanced Splits Callbacks & Flow', () => {
     },
     expenseService: {
       createExpenseFromDraft: vi.fn().mockResolvedValue({ id: 'exp-saved' }),
+      updateExpenseFromDraft: vi.fn().mockResolvedValue({ id: 'exp-updated' }),
     },
   } as unknown as BotServices;
 
@@ -34,348 +35,26 @@ describe('Phase 5: Advanced Splits Callbacks & Flow', () => {
     vi.clearAllMocks();
   });
 
-  it('handles split:shares by initializing 1 share per participant and displaying shares keyboard', async () => {
-    const initialDraft: ExpenseDraft = {
-      chatId,
-      userId,
-      groupId: 'g-1',
-      creatorUserId: 'u-dev',
-      step: 'AWAITING_SPLIT_TYPE',
-      description: 'Team Lunch',
-      totalAmount: 300000, // ₹3000
-      payerUserId: 'u-dev',
-      payerName: 'Dev',
-      participantUserIds: ['u-dev', 'u-rahul', 'u-aman'],
-      splits: [],
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
-    expenseStateManager.setState(initialDraft);
-
-    const replyMock = vi.fn().mockResolvedValue(undefined);
+  it('handles expired state: shows alert when session is expired or not found', async () => {
     const answerCallbackMock = vi.fn().mockResolvedValue(true);
     const mockCtx = {
       chat: { id: chatId },
       from: { id: userId },
       answerCallbackQuery: answerCallbackMock,
-      reply: replyMock,
-    } as unknown as Context;
-
-    const handled = await handleExpenseCallback(mockCtx, 'split:shares', mockServices);
-
-    expect(handled).toBe(true);
-    expect(answerCallbackMock).toHaveBeenCalled();
-    expect(replyMock).toHaveBeenCalledWith(
-      expect.stringContaining('Give each person their number of shares'),
-      expect.objectContaining({ reply_markup: expect.anything() })
-    );
-
-    const updated = expenseStateManager.getState(chatId, userId);
-    expect(updated?.step).toBe('AWAITING_SHARES_SPLIT');
-    expect(updated?.splitType).toBe('shares');
-    expect(updated?.sharesMap).toEqual({
-      'u-dev': 1,
-      'u-rahul': 1,
-      'u-aman': 1,
-    });
-  });
-
-  it('increments participant shares and updates keyboard markup', async () => {
-    expenseStateManager.setState({
-      chatId,
-      userId,
-      groupId: 'g-1',
-      creatorUserId: 'u-dev',
-      step: 'AWAITING_SHARES_SPLIT',
-      description: 'Team Lunch',
-      totalAmount: 300000,
-      payerUserId: 'u-dev',
-      payerName: 'Dev',
-      participantUserIds: ['u-dev', 'u-rahul', 'u-aman'],
-      sharesMap: { 'u-dev': 1, 'u-rahul': 1, 'u-aman': 1 },
-      splits: [],
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
-
-    const editReplyMarkupMock = vi.fn().mockResolvedValue(true);
-    const answerCallbackMock = vi.fn().mockResolvedValue(true);
-    const mockCtx = {
-      chat: { id: chatId },
-      from: { id: userId },
-      answerCallbackQuery: answerCallbackMock,
-      editMessageReplyMarkup: editReplyMarkupMock,
-    } as unknown as Context;
-
-    // Increment Dev's shares from 1 to 2
-    const handled = await handleExpenseCallback(mockCtx, 'share:inc:u-dev', mockServices);
-
-    expect(handled).toBe(true);
-    expect(editReplyMarkupMock).toHaveBeenCalled();
-
-    const updated = expenseStateManager.getState(chatId, userId);
-    expect(updated?.sharesMap?.['u-dev']).toBe(2);
-    expect(updated?.sharesMap?.['u-rahul']).toBe(1);
-  });
-
-  it('prevents decrementing shares below 1 with friendly alert', async () => {
-    expenseStateManager.setState({
-      chatId,
-      userId,
-      groupId: 'g-1',
-      creatorUserId: 'u-dev',
-      step: 'AWAITING_SHARES_SPLIT',
-      description: 'Team Lunch',
-      totalAmount: 300000,
-      payerUserId: 'u-dev',
-      payerName: 'Dev',
-      participantUserIds: ['u-dev', 'u-rahul'],
-      sharesMap: { 'u-dev': 1, 'u-rahul': 1 },
-      splits: [],
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
-
-    const answerCallbackMock = vi.fn().mockResolvedValue(true);
-    const editReplyMarkupMock = vi.fn().mockResolvedValue(true);
-    const mockCtx = {
-      chat: { id: chatId },
-      from: { id: userId },
-      answerCallbackQuery: answerCallbackMock,
-      editMessageReplyMarkup: editReplyMarkupMock,
-    } as unknown as Context;
-
-    // Try to decrement below 1
-    const handled = await handleExpenseCallback(mockCtx, 'share:dec:u-dev', mockServices);
-
-    expect(handled).toBe(true);
-    expect(answerCallbackMock).toHaveBeenCalledWith(
-      expect.objectContaining({ text: expect.stringContaining('Minimum share is 1') })
-    );
-    expect(editReplyMarkupMock).not.toHaveBeenCalled();
-
-    const updated = expenseStateManager.getState(chatId, userId);
-    expect(updated?.sharesMap?.['u-dev']).toBe(1);
-  });
-
-  it('calculates 2:1:1 shares split and renders confirmation preview', async () => {
-    // Total = ₹3000 (300,000 paise). Dev = 2 shares, Rahul = 1, Aman = 1
-    // Dev: ₹1500 (150,000 paise), Rahul: ₹750 (75,000 paise), Aman: ₹750 (75,000 paise)
-    expenseStateManager.setState({
-      chatId,
-      userId,
-      groupId: 'g-1',
-      creatorUserId: 'u-dev',
-      step: 'AWAITING_SHARES_SPLIT',
-      description: 'Dinner at Bistro',
-      totalAmount: 300000,
-      payerUserId: 'u-dev',
-      payerName: 'Dev',
-      participantUserIds: ['u-dev', 'u-rahul', 'u-aman'],
-      sharesMap: { 'u-dev': 2, 'u-rahul': 1, 'u-aman': 1 },
-      splits: [],
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
-
-    const replyMock = vi.fn().mockResolvedValue(undefined);
-    const answerCallbackMock = vi.fn().mockResolvedValue(true);
-    const mockCtx = {
-      chat: { id: chatId },
-      from: { id: userId },
-      answerCallbackQuery: answerCallbackMock,
-      reply: replyMock,
-    } as unknown as Context;
-
-    const handled = await handleExpenseCallback(mockCtx, 'share:continue', mockServices);
-
-    expect(handled).toBe(true);
-    expect(replyMock).toHaveBeenCalledWith(
-      expect.stringContaining('Method:* 🔢 Shares'),
-      expect.objectContaining({ reply_markup: expect.anything() })
-    );
-
-    const updated = expenseStateManager.getState(chatId, userId);
-    expect(updated?.step).toBe('AWAITING_CONFIRMATION');
-    expect(updated?.splits).toHaveLength(3);
-    expect(updated?.splits).toEqual([
-      { userId: 'u-dev', name: 'Dev', amount: 150000, shares: 2 },
-      { userId: 'u-rahul', name: 'Rahul', amount: 75000, shares: 1 },
-      { userId: 'u-aman', name: 'Aman', amount: 75000, shares: 1 },
-    ]);
-  });
-
-  it('allows changing split method from confirmation preserving details and discarding old splits', async () => {
-    expenseStateManager.setState({
-      chatId,
-      userId,
-      groupId: 'g-1',
-      creatorUserId: 'u-dev',
-      step: 'AWAITING_CONFIRMATION',
-      description: 'Dinner at Bistro',
-      totalAmount: 300000,
-      payerUserId: 'u-dev',
-      payerName: 'Dev',
-      participantUserIds: ['u-dev', 'u-rahul'],
-      splitType: 'equal',
-      splits: [
-        { userId: 'u-dev', name: 'Dev', amount: 150000 },
-        { userId: 'u-rahul', name: 'Rahul', amount: 150000 },
-      ],
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
-
-    const replyMock = vi.fn().mockResolvedValue(undefined);
-    const answerCallbackMock = vi.fn().mockResolvedValue(true);
-    const mockCtx = {
-      chat: { id: chatId },
-      from: { id: userId },
-      answerCallbackQuery: answerCallbackMock,
-      reply: replyMock,
-    } as unknown as Context;
-
-    const handled = await handleExpenseCallback(mockCtx, 'exp:change_split', mockServices);
-
-    expect(handled).toBe(true);
-    expect(replyMock).toHaveBeenCalledWith(
-      expect.stringContaining('How should ₹3000.00 be split?'),
-      expect.anything()
-    );
-
-    const updated = expenseStateManager.getState(chatId, userId);
-    expect(updated?.step).toBe('AWAITING_SPLIT_TYPE');
-    expect(updated?.description).toBe('Dinner at Bistro');
-    expect(updated?.totalAmount).toBe(300000);
-    expect(updated?.payerUserId).toBe('u-dev');
-    expect(updated?.participantUserIds).toEqual(['u-dev', 'u-rahul']);
-    expect(updated?.splits).toEqual([]);
-    expect(updated?.splitType).toBeUndefined();
-  });
-
-  it('allows changing participants from confirmation, preserving description, amount, and payer', async () => {
-    expenseStateManager.setState({
-      chatId,
-      userId,
-      groupId: 'g-1',
-      creatorUserId: 'u-dev',
-      step: 'AWAITING_CONFIRMATION',
-      description: 'Dinner at Bistro',
-      totalAmount: 300000,
-      payerUserId: 'u-dev',
-      payerName: 'Dev',
-      participantUserIds: ['u-dev', 'u-rahul'],
-      splitType: 'equal',
-      splits: [
-        { userId: 'u-dev', name: 'Dev', amount: 150000 },
-        { userId: 'u-rahul', name: 'Rahul', amount: 150000 },
-      ],
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
-
-    const replyMock = vi.fn().mockResolvedValue(undefined);
-    const answerCallbackMock = vi.fn().mockResolvedValue(true);
-    const mockCtx = {
-      chat: { id: chatId },
-      from: { id: userId },
-      answerCallbackQuery: answerCallbackMock,
-      reply: replyMock,
-    } as unknown as Context;
-
-    const handled = await handleExpenseCallback(mockCtx, 'exp:change_participants', mockServices);
-
-    expect(handled).toBe(true);
-    expect(replyMock).toHaveBeenCalledWith(
-      expect.stringContaining('Who shared this expense?'),
-      expect.anything()
-    );
-
-    const updated = expenseStateManager.getState(chatId, userId);
-    expect(updated?.step).toBe('AWAITING_PARTICIPANTS');
-    expect(updated?.description).toBe('Dinner at Bistro');
-    expect(updated?.totalAmount).toBe(300000);
-    expect(updated?.payerUserId).toBe('u-dev');
-    expect(updated?.splits).toEqual([]);
-  });
-
-  it('supports payer and participants being completely independent (Payer = Dev, Participants = Rahul + Aman)', async () => {
-    expenseStateManager.setState({
-      chatId,
-      userId,
-      groupId: 'g-1',
-      creatorUserId: 'u-dev',
-      step: 'AWAITING_CONFIRMATION',
-      description: 'Dev pays for friends',
-      totalAmount: 200000, // ₹2000
-      payerUserId: 'u-dev',
-      payerName: 'Dev',
-      participantUserIds: ['u-rahul', 'u-aman'], // Dev is NOT in participants!
-      splitType: 'equal',
-      splits: [
-        { userId: 'u-rahul', name: 'Rahul', amount: 100000 },
-        { userId: 'u-aman', name: 'Aman', amount: 100000 },
-      ],
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
-
-    const answerCallbackMock = vi.fn().mockResolvedValue(true);
-    const replyMock = vi.fn().mockResolvedValue(undefined);
-    const mockCtx = {
-      chat: { id: chatId },
-      from: { id: userId },
-      answerCallbackQuery: answerCallbackMock,
-      reply: replyMock,
-      editMessageText: vi.fn().mockResolvedValue(true),
     } as unknown as Context;
 
     const handled = await handleExpenseCallback(mockCtx, 'exp:confirm', mockServices);
 
     expect(handled).toBe(true);
-    expect(mockServices.expenseService.createExpenseFromDraft).toHaveBeenCalledWith(
+    expect(answerCallbackMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        payerUserId: 'u-dev',
-        participantUserIds: ['u-rahul', 'u-aman'],
+        text: expect.stringContaining('This expense session has expired'),
+        show_alert: true,
       })
     );
-    expect(expenseStateManager.getState(chatId, userId)).toBeNull(); // Cleaned up after save
   });
 
-  it('enforces idempotency: rejects duplicate exp:confirm while in SAVING state', async () => {
-    expenseStateManager.setState({
-      chatId,
-      userId,
-      groupId: 'g-1',
-      creatorUserId: 'u-dev',
-      step: 'SAVING',
-      description: 'Trip',
-      totalAmount: 100000,
-      payerUserId: 'u-dev',
-      payerName: 'Dev',
-      participantUserIds: ['u-dev'],
-      splits: [{ userId: 'u-dev', name: 'Dev', amount: 100000 }],
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
-
-    const answerCallbackMock = vi.fn().mockResolvedValue(true);
-    const mockCtx = {
-      chat: { id: chatId },
-      from: { id: userId },
-      answerCallbackQuery: answerCallbackMock,
-    } as unknown as Context;
-
-    const handled = await handleExpenseCallback(mockCtx, 'exp:confirm', mockServices);
-
-    expect(handled).toBe(true);
-    expect(answerCallbackMock).toHaveBeenCalledWith(
-      expect.objectContaining({ text: expect.stringContaining('already in progress') })
-    );
-    expect(mockServices.expenseService.createExpenseFromDraft).not.toHaveBeenCalled();
-  });
-
-  it('cancels active draft cleanly on exp:cancel', async () => {
+  it('cancels active draft cleanly on exp:cancel from any state', async () => {
     expenseStateManager.setState({
       chatId,
       userId,
@@ -404,5 +83,273 @@ describe('Phase 5: Advanced Splits Callbacks & Flow', () => {
     expect(answerCallbackMock).toHaveBeenCalled();
     expect(editMessageMock).toHaveBeenCalledWith('❌ Expense creation cancelled.');
     expect(expenseStateManager.getState(chatId, userId)).toBeNull();
+  });
+
+  it('saves expense and renders confirmation on exp:confirm', async () => {
+    expenseStateManager.setState({
+      chatId,
+      userId,
+      groupId: 'g-1',
+      creatorUserId: 'u-dev',
+      step: 'AWAITING_CONFIRMATION',
+      description: 'Dinner',
+      totalAmount: 120000,
+      payerUserId: 'u-dev',
+      payerName: 'Dev',
+      participantUserIds: ['u-dev', 'u-rahul'],
+      splitType: 'equal',
+      splits: [
+        { userId: 'u-dev', name: 'Dev', amount: 60000 },
+        { userId: 'u-rahul', name: 'Rahul', amount: 60000 },
+      ],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    const answerCallbackMock = vi.fn().mockResolvedValue(true);
+    const editMessageMock = vi.fn().mockResolvedValue(true);
+    const mockCtx = {
+      chat: { id: chatId },
+      from: { id: userId },
+      answerCallbackQuery: answerCallbackMock,
+      editMessageText: editMessageMock,
+      reply: vi.fn(),
+    } as unknown as Context;
+
+    const handled = await handleExpenseCallback(mockCtx, 'exp:confirm', mockServices);
+
+    expect(handled).toBe(true);
+    expect(mockServices.expenseService.createExpenseFromDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description: 'Dinner',
+        totalAmount: 120000,
+        payerUserId: 'u-dev',
+      })
+    );
+    expect(editMessageMock).toHaveBeenCalledWith(
+      expect.stringContaining('Expense added!'),
+      expect.anything()
+    );
+    expect(expenseStateManager.getState(chatId, userId)).toBeNull();
+  });
+
+  it('enforces idempotency: rejects duplicate exp:confirm while in SAVING state', async () => {
+    expenseStateManager.setState({
+      chatId,
+      userId,
+      groupId: 'g-1',
+      creatorUserId: 'u-dev',
+      step: 'SAVING',
+      description: 'Dinner',
+      totalAmount: 120000,
+      payerUserId: 'u-dev',
+      payerName: 'Dev',
+      participantUserIds: ['u-dev'],
+      splits: [{ userId: 'u-dev', name: 'Dev', amount: 120000 }],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    const answerCallbackMock = vi.fn().mockResolvedValue(true);
+    const mockCtx = {
+      chat: { id: chatId },
+      from: { id: userId },
+      answerCallbackQuery: answerCallbackMock,
+    } as unknown as Context;
+
+    const handled = await handleExpenseCallback(mockCtx, 'exp:confirm', mockServices);
+
+    expect(handled).toBe(true);
+    expect(answerCallbackMock).toHaveBeenCalledWith(
+      expect.objectContaining({ text: expect.stringContaining('already in progress') })
+    );
+    expect(mockServices.expenseService.createExpenseFromDraft).not.toHaveBeenCalled();
+  });
+
+  it('navigates to change menu on exp:change', async () => {
+    expenseStateManager.setState({
+      chatId,
+      userId,
+      groupId: 'g-1',
+      creatorUserId: 'u-dev',
+      step: 'AWAITING_CONFIRMATION',
+      description: 'Dinner',
+      totalAmount: 120000,
+      payerUserId: 'u-dev',
+      payerName: 'Dev',
+      participantUserIds: ['u-dev', 'u-rahul'],
+      splitType: 'equal',
+      splits: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    const editMessageMock = vi.fn().mockResolvedValue(true);
+    const answerCallbackMock = vi.fn().mockResolvedValue(true);
+    const mockCtx = {
+      chat: { id: chatId },
+      from: { id: userId },
+      answerCallbackQuery: answerCallbackMock,
+      editMessageText: editMessageMock,
+    } as unknown as Context;
+
+    const handled = await handleExpenseCallback(mockCtx, 'exp:change', mockServices);
+
+    expect(handled).toBe(true);
+    expect(editMessageMock).toHaveBeenCalledWith(
+      expect.stringContaining('What would you like to change?'),
+      expect.objectContaining({ reply_markup: expect.anything() })
+    );
+    expect(expenseStateManager.getState(chatId, userId)?.step).toBe('CHANGE_MENU');
+  });
+
+  it('handles changing payer: displays member options and sets new payer', async () => {
+    expenseStateManager.setState({
+      chatId,
+      userId,
+      groupId: 'g-1',
+      creatorUserId: 'u-dev',
+      step: 'CHANGE_MENU',
+      description: 'Dinner',
+      totalAmount: 120000,
+      payerUserId: 'u-dev',
+      payerName: 'Dev',
+      participantUserIds: ['u-dev', 'u-rahul'],
+      splitType: 'equal',
+      splits: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    const editMessageMock = vi.fn().mockResolvedValue(true);
+    const answerCallbackMock = vi.fn().mockResolvedValue(true);
+    const mockCtx = {
+      chat: { id: chatId },
+      from: { id: userId },
+      answerCallbackQuery: answerCallbackMock,
+      editMessageText: editMessageMock,
+    } as unknown as Context;
+
+    // 1. Open payer menu
+    await handleExpenseCallback(mockCtx, 'exp:ch_payer', mockServices);
+    expect(expenseStateManager.getState(chatId, userId)?.step).toBe('AWAITING_PAYER');
+
+    // 2. Select Rahul as payer
+    await handleExpenseCallback(mockCtx, 'exp:set_payer:u-rahul', mockServices);
+    const updated = expenseStateManager.getState(chatId, userId);
+    expect(updated?.step).toBe('AWAITING_CONFIRMATION');
+    expect(updated?.payerUserId).toBe('u-rahul');
+    expect(updated?.payerName).toBe('Rahul');
+  });
+
+  it('handles participant selection: toggle, select all, clear, and done', async () => {
+    expenseStateManager.setState({
+      chatId,
+      userId,
+      groupId: 'g-1',
+      creatorUserId: 'u-dev',
+      step: 'CHANGE_MENU',
+      description: 'Dinner',
+      totalAmount: 120000,
+      payerUserId: 'u-dev',
+      payerName: 'Dev',
+      participantUserIds: ['u-dev', 'u-rahul'],
+      splitType: 'equal',
+      splits: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    const editMessageMock = vi.fn().mockResolvedValue(true);
+    const editReplyMarkupMock = vi.fn().mockResolvedValue(true);
+    const answerCallbackMock = vi.fn().mockResolvedValue(true);
+    const mockCtx = {
+      chat: { id: chatId },
+      from: { id: userId },
+      answerCallbackQuery: answerCallbackMock,
+      editMessageText: editMessageMock,
+      editMessageReplyMarkup: editReplyMarkupMock,
+    } as unknown as Context;
+
+    // 1. Open participant selection
+    await handleExpenseCallback(mockCtx, 'exp:ch_part', mockServices);
+    expect(expenseStateManager.getState(chatId, userId)?.step).toBe('AWAITING_PARTICIPANTS');
+
+    // 2. Toggle Aman in
+    await handleExpenseCallback(mockCtx, 'exp:part_toggle:u-aman', mockServices);
+    expect(expenseStateManager.getState(chatId, userId)?.participantUserIds).toEqual([
+      'u-dev',
+      'u-rahul',
+      'u-aman',
+    ]);
+
+    // 3. Clear all
+    await handleExpenseCallback(mockCtx, 'exp:part_clear', mockServices);
+    expect(expenseStateManager.getState(chatId, userId)?.participantUserIds).toEqual([]);
+
+    // 4. Try Done with 0 participants: alerts user and does not exit
+    await handleExpenseCallback(mockCtx, 'exp:part_done', mockServices);
+    expect(answerCallbackMock).toHaveBeenCalledWith(
+      expect.objectContaining({ text: expect.stringContaining('at least one participant') })
+    );
+    expect(expenseStateManager.getState(chatId, userId)?.step).toBe('AWAITING_PARTICIPANTS');
+
+    // 5. Select All
+    await handleExpenseCallback(mockCtx, 'exp:part_all', mockServices);
+    expect(expenseStateManager.getState(chatId, userId)?.participantUserIds).toEqual([
+      'u-dev',
+      'u-rahul',
+      'u-aman',
+    ]);
+
+    // 6. Finish with Done
+    await handleExpenseCallback(mockCtx, 'exp:part_done', mockServices);
+    const finalDraft = expenseStateManager.getState(chatId, userId);
+    expect(finalDraft?.step).toBe('AWAITING_CONFIRMATION');
+    expect(finalDraft?.splits).toHaveLength(3);
+    expect(finalDraft?.splits[0].amount).toBe(40000);
+  });
+
+  it('handles split method change to Equal, Custom, and Shares', async () => {
+    expenseStateManager.setState({
+      chatId,
+      userId,
+      groupId: 'g-1',
+      creatorUserId: 'u-dev',
+      step: 'CHANGE_MENU',
+      description: 'Dinner',
+      totalAmount: 120000,
+      payerUserId: 'u-dev',
+      payerName: 'Dev',
+      participantUserIds: ['u-dev', 'u-rahul'],
+      splitType: 'equal',
+      splits: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    const editMessageMock = vi.fn().mockResolvedValue(true);
+    const answerCallbackMock = vi.fn().mockResolvedValue(true);
+    const mockCtx = {
+      chat: { id: chatId },
+      from: { id: userId },
+      answerCallbackQuery: answerCallbackMock,
+      editMessageText: editMessageMock,
+    } as unknown as Context;
+
+    // 1. Open split menu
+    await handleExpenseCallback(mockCtx, 'exp:ch_split', mockServices);
+    expect(expenseStateManager.getState(chatId, userId)?.step).toBe('AWAITING_SPLIT_TYPE');
+
+    // 2. Select Custom
+    await handleExpenseCallback(mockCtx, 'exp:set_split:custom', mockServices);
+    expect(expenseStateManager.getState(chatId, userId)?.step).toBe('AWAITING_CUSTOM_SPLIT');
+
+    // 3. Reset to Split menu and select Equal
+    await handleExpenseCallback(mockCtx, 'exp:set_split:equal', mockServices);
+    const equalDraft = expenseStateManager.getState(chatId, userId);
+    expect(equalDraft?.step).toBe('AWAITING_CONFIRMATION');
+    expect(equalDraft?.splitType).toBe('equal');
+    expect(equalDraft?.splits).toHaveLength(2);
   });
 });

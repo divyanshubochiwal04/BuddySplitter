@@ -12,7 +12,8 @@ export function createAddHandler(services: BotServices) {
         return;
       }
     }
-    await startExpenseFlow(ctx, services);
+    const initialText = ctx.match?.trim();
+    await startExpenseFlow(ctx, services, initialText);
   };
 }
 
