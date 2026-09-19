@@ -5,6 +5,7 @@ import {
   ReconciledUserPersonalBalance,
   UserPersonalBalance,
 } from './balance.types';
+import { escapeMarkdown } from '../../shared/markdown';
 
 /**
  * Formats a user's personal balance for display in Telegram.
@@ -83,13 +84,13 @@ export function formatGroupBalanceSummary(
   // 1. Creditors (receive money)
   for (const creditor of summary.creditors) {
     const net = 'outstandingNet' in creditor ? creditor.outstandingNet : creditor.netBalance;
-    lines.push(`🟢 ${creditor.displayName} receives ${formatPaise(net)}`);
+    lines.push(`🟢 ${escapeMarkdown(creditor.displayName)} receives ${formatPaise(net)}`);
   }
 
   // 2. Debtors (owe money)
   for (const debtor of summary.debtors) {
     const net = 'outstandingNet' in debtor ? debtor.outstandingNet : debtor.netBalance;
-    lines.push(`🔴 ${debtor.displayName} owes ${formatPaise(Math.abs(net))}`);
+    lines.push(`🔴 ${escapeMarkdown(debtor.displayName)} owes ${formatPaise(Math.abs(net))}`);
   }
 
   // 3. Settled members (if any exist)
@@ -97,7 +98,7 @@ export function formatGroupBalanceSummary(
     lines.push('');
     lines.push(`⚪ *Settled:*`);
     for (const s of summary.settled) {
-      lines.push(`• ${s.displayName}`);
+      lines.push(`• ${escapeMarkdown(s.displayName)}`);
     }
   }
 

@@ -21,6 +21,8 @@ import { handleExpenseManagementCallback } from './expense-management-callbacks'
 import { handlePaymentCallback } from './payment-callbacks';
 import { startExpenseFlow } from '../../modules/expenses/expense-flow';
 import { logger } from '../../shared/logger';
+import { formatPaise } from '../../shared/currency';
+
 
 const callbackDataSchema = z.string().min(1).max(64);
 
@@ -186,6 +188,81 @@ export function createCallbackRouter(services: BotServices) {
           });
         } catch (err: any) {
           await ctx.reply(`⚠️ ${err.message || 'Unable to retrieve summary.'}`);
+        }
+        return;
+      }
+
+      if (data === 'action:payments') {
+        await ctx.answerCallbackQuery();
+        if (!ctx.chat?.id || !ctx.from?.id) {
+          await ctx.reply('⚠️ Unable to retrieve payment history.');
+          return;
+        }
+        try {
+          const { payments } =
+            await services.settlementService.getRecentPaymentsForTelegram(
+              ctx.chat.id,
+              ctx.from.id,
+              10
+            );
+          if (payments.length === 0) {
+            const msg =
+              `💳 *Payment History*\n\n` +
+              `_No payments recorded yet in this group._\n\n` +
+              `Use /settle to view and record payments.`;
+            try {
+              await ctx.editMessageText(msg, { parse_mode: 'Markdown', reply_markup: { inline_keyboard: [[{ text: '⬅️ Back', callback_data: 'menu:group' }]] } });
+            } catch {
+              await ctx.reply(msg, { parse_mode: 'Markdown', reply_markup: { inline_keyboard: [[{ text: '⬅️ Back', callback_data: 'menu:group' }]] } });
+            }
+            return;
+          }
+          function fmtPaymentDate(iso: string): string {
+            try {
+              const d = new Date(iso);
+              return d.toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' });
+            } catch { return iso; }
+          }
+          const lines: string[] = [`💳 *Recent Payments*\n`];
+          for (const p of payments) {
+            lines.push(`• *${p.fromDisplayName}* paid *${p.toDisplayName}* ${formatPaise(p.amount)}`);
+            lines.push(`  _${fmtPaymentDate(p.settledAt)}_`);
+          }
+          lines.push('');
+          const countLabel = payments.length === 1 ? '1 payment' : `${payments.length} payments`;
+          lines.push(`_Showing last ${countLabel}_`);
+          const payMsg = lines.join('\n');
+          try {
+            await ctx.editMessageText(payMsg, { parse_mode: 'Markdown', reply_markup: { inline_keyboard: [[{ text: '💸 Settle Up', callback_data: 'action:settle_up' }, { text: '⬅️ Back', callback_data: 'menu:group' }]] } });
+          } catch {
+            await ctx.reply(payMsg, { parse_mode: 'Markdown', reply_markup: { inline_keyboard: [[{ text: '💸 Settle Up', callback_data: 'action:settle_up' }, { text: '⬅️ Back', callback_data: 'menu:group' }]] } });
+          }
+        } catch (err: any) {
+          logger.error('Failed to get payment history via callback:', err);
+          await ctx.reply(`⚠️ ${err.message || 'Unable to retrieve payment history.'}`);
+        }
+        return;
+      }
+
+      if (data === 'action:view_balances') {
+        await ctx.answerCallbackQuery();
+        if (!ctx.chat?.id || !ctx.from?.id) {
+          await ctx.reply('⚠️ Unable to retrieve balance.');
+          return;
+        }
+        try {
+          const balance =
+            typeof services.balanceService.getReconciledUserBalanceForTelegram === 'function'
+              ? await services.balanceService.getReconciledUserBalanceForTelegram(ctx.chat.id, ctx.from.id)
+              : await services.balanceService.getUserBalanceForTelegram(ctx.chat.id, ctx.from.id);
+          const balanceMsg = formatUserPersonalBalance(balance);
+          try {
+            await ctx.editMessageText(balanceMsg, { parse_mode: 'Markdown', reply_markup: { inline_keyboard: [[{ text: '⬅️ Back', callback_data: 'menu:group' }]] } });
+          } catch {
+            await ctx.reply(balanceMsg, { parse_mode: 'Markdown', reply_markup: { inline_keyboard: [[{ text: '⬅️ Back', callback_data: 'menu:group' }]] } });
+          }
+        } catch (err: any) {
+          await ctx.reply(`⚠️ ${err.message || 'Unable to retrieve balance.'}`);
         }
         return;
       }

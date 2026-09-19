@@ -287,7 +287,7 @@ describe('Phase 5: Advanced Splits Callbacks & Flow', () => {
 
     expect(handled).toBe(true);
     expect(replyMock).toHaveBeenCalledWith(
-      expect.stringContaining('Who should split this expense?'),
+      expect.stringContaining('Who shared this expense?'),
       expect.anything()
     );
 

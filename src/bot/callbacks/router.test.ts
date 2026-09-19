@@ -152,8 +152,9 @@ describe('Callback Router', () => {
     await router(mockCtx);
 
     expect(mockExpenseService.getExpenseHistoryForTelegram).toHaveBeenCalledWith(-100555, 123, 1);
+    // Empty state message contains "No expenses yet" or full history header
     expect(replyMock).toHaveBeenCalledWith(
-      expect.stringContaining('Expenses'),
+      expect.stringMatching(/No expenses yet|Expenses/),
       expect.any(Object)
     );
   });

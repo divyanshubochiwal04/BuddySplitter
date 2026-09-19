@@ -80,7 +80,7 @@ describe('Expense Flow', () => {
 
     expect(handled).toBe(true);
     expect(replyMock).toHaveBeenCalledWith(
-      expect.stringContaining('How much was it?'),
+      expect.stringContaining('Enter the amount'),
       expect.anything()
     );
 

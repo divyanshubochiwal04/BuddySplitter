@@ -19,11 +19,11 @@ describe('Keyboard Builders', () => {
     const keyboard = buildPrivateMenuKeyboard('MyTestBot');
     const buttons = keyboard.inline_keyboard.flat();
 
-    const addGroupBtn = buttons.find((b) => b.text.includes('Add to Group'));
+    const addGroupBtn = buttons.find((b) => b.text.includes('Add BuddySplitter to a Group'));
     expect(addGroupBtn).toBeDefined();
     expect('url' in addGroupBtn! && addGroupBtn.url).toBe('https://t.me/MyTestBot?startgroup=true');
 
-    const helpBtn = buttons.find((b) => b.text.includes('Help'));
+    const helpBtn = buttons.find((b) => b.text.includes('How it Works'));
     expect(helpBtn).toBeDefined();
     expect('callback_data' in helpBtn! && helpBtn.callback_data).toBe('menu:help');
   });
@@ -31,25 +31,37 @@ describe('Keyboard Builders', () => {
   it('builds private menu with fallback callback if username is absent', () => {
     const keyboard = buildPrivateMenuKeyboard();
     const buttons = keyboard.inline_keyboard.flat();
-    const addGroupBtn = buttons.find((b) => b.text.includes('Add to Group'));
+    const addGroupBtn = buttons.find((b) => b.text.includes('Add BuddySplitter to a Group'));
     expect(addGroupBtn).toBeDefined();
     expect('callback_data' in addGroupBtn! && addGroupBtn.callback_data).toBe('menu:add_to_group');
   });
 
-  it('builds group menu with all 6 required buttons', () => {
+  it('builds group menu with all 8 required buttons in compact layout', () => {
     const keyboard = buildGroupMenuKeyboard();
     const buttons = keyboard.inline_keyboard.flat();
 
-    expect(buttons).toHaveLength(6);
-    expect(buttons.map((b) => b.text)).toEqual([
-      '➕ Add Expense',
-      '💰 My Balance',
-      '📊 Summary',
-      '💸 Settle Up',
-      '📋 Expenses',
-      '👥 Members',
-    ]);
+    expect(buttons).toHaveLength(8);
+    const texts = buttons.map((b) => b.text);
+    expect(texts).toContain('➕ Add Expense');
+    expect(texts).toContain('📋 Expenses');
+    expect(texts).toContain('💰 My Balance');
+    expect(texts).toContain('📊 Group Summary');
+    expect(texts).toContain('💸 Settle Up');
+    expect(texts).toContain('💳 Payments');
+    expect(texts).toContain('👥 Members');
+    expect(texts).toContain('❓ Help');
+
+    // Verify callback data for new buttons
+    const paymentsBtn = buttons.find((b) => b.text === '💳 Payments');
+    expect('callback_data' in paymentsBtn! && paymentsBtn.callback_data).toBe('action:payments');
+
+    const helpBtn = buttons.find((b) => b.text === '❓ Help');
+    expect('callback_data' in helpBtn! && helpBtn.callback_data).toBe('menu:help');
+
+    const summaryBtn = buttons.find((b) => b.text === '📊 Group Summary');
+    expect('callback_data' in summaryBtn! && summaryBtn.callback_data).toBe('action:summary');
   });
+
 
   it('builds back and cancel keyboards', () => {
     const backKb = buildBackRow('menu:custom');

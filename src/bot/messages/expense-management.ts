@@ -1,5 +1,6 @@
 import { formatPaise } from '../../shared/currency';
 import { ExpenseDetailsResult, ExpenseHistoryResult } from '../../modules/expenses/expense.types';
+import { escapeMarkdown } from '../../shared/markdown';
 
 function formatDate(isoString: string): string {
   try {
@@ -51,21 +52,21 @@ export function formatExpenseHistoryMessage(
   result: ExpenseHistoryResult,
   groupTitle?: string
 ): string {
-  const header = groupTitle ? `📋 *Expenses for ${groupTitle}*` : `📋 *Group Expenses*`;
+  const safeTitle = groupTitle ? escapeMarkdown(groupTitle) : undefined;
+  const header = safeTitle ? `📋 *Expenses for ${safeTitle}*` : `📋 *Group Expenses*`;
 
   if (result.totalCount === 0) {
     return (
-      `${header}\n\n` +
-      `No active expenses recorded in this group yet.\n` +
-      `Use /add or tap below to record your first expense!`
+      `📋 *No expenses yet.*\n\n` +
+      `Add your first shared expense:`
     );
   }
 
   const lines = result.expenses.map((e, idx) => {
     const index = (result.page - 1) * result.pageSize + idx + 1;
     return (
-      `${index}. *${e.description}* — ${formatPaise(e.totalAmount)}\n` +
-      `   Paid by ${e.payerName} • ${formatDate(e.expenseDate)}`
+      `${index}. *${escapeMarkdown(e.description)}* — ${formatPaise(e.totalAmount)}\n` +
+      `   Paid by ${escapeMarkdown(e.payerName)} • ${formatDate(e.expenseDate)}`
     );
   });
 
@@ -85,15 +86,15 @@ export function formatExpenseDetailsMessage(details: ExpenseDetailsResult): stri
     } else if (s.percentage !== null && s.percentage !== undefined) {
       extra = ` (${s.percentage}%)`;
     }
-    return `• ${s.displayName}: ${formatPaise(s.amount)}${extra}`;
+    return `• ${escapeMarkdown(s.displayName)}: ${formatPaise(s.amount)}${extra}`;
   });
 
   return (
     `🧾 *Expense Details*\n\n` +
-    `*Description:* ${details.description}\n` +
+    `*Description:* ${escapeMarkdown(details.description)}\n` +
     `*Total Amount:* ${formatPaise(details.totalAmount)}\n` +
-    `*Paid by:* ${details.payerName}\n` +
-    `*Created by:* ${details.creatorName}\n` +
+    `*Paid by:* ${escapeMarkdown(details.payerName)}\n` +
+    `*Created by:* ${escapeMarkdown(details.creatorName)}\n` +
     `*Date:* ${formatDateTime(details.expenseDate)}\n` +
     `*Split Method:* ${formatSplitType(details.splitType)}\n\n` +
     `*Participants & Breakdown:*\n` +
@@ -104,9 +105,9 @@ export function formatExpenseDetailsMessage(details: ExpenseDetailsResult): stri
 export function formatDeleteConfirmationMessage(details: ExpenseDetailsResult): string {
   return (
     `⚠️ *Delete this expense?*\n\n` +
-    `*${details.description}*\n` +
+    `*${escapeMarkdown(details.description)}*\n` +
     `${formatPaise(details.totalAmount)}\n` +
-    `Paid by ${details.payerName}\n\n` +
+    `Paid by ${escapeMarkdown(details.payerName)}\n\n` +
     `This will remove it from active expense history and recalculate balances.`
   );
 }
@@ -116,7 +117,7 @@ export function formatExpenseDeletedSuccessMessage(
   totalAmount: number
 ): string {
   return (
-    `✅ Expense "*${description}*" (${formatPaise(totalAmount)}) has been deleted.\n\n` +
+    `✅ Expense "*${escapeMarkdown(description)}*" (${formatPaise(totalAmount)}) has been deleted.\n\n` +
     `Group balances and settlement recommendations have been updated.`
   );
 }

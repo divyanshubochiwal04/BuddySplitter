@@ -1,5 +1,6 @@
 import { formatPaise } from '../../shared/currency';
 import { GroupSettlementPlan, UserSettlementSummary } from './settlement.types';
+import { escapeMarkdown } from '../../shared/markdown';
 
 /**
  * Formats a user's personal settlement actions for Telegram.
@@ -19,7 +20,7 @@ export function formatUserSettlementSummary(summary: UserSettlementSummary): str
   if (summary.payments.length > 0) {
     sections.push(`🔴 *You pay:*`);
     for (const tx of summary.payments) {
-      sections.push(`• ${tx.toDisplayName} — ${formatPaise(tx.amount)}`);
+      sections.push(`• ${escapeMarkdown(tx.toDisplayName)} — ${formatPaise(tx.amount)}`);
     }
   }
 
@@ -30,7 +31,7 @@ export function formatUserSettlementSummary(summary: UserSettlementSummary): str
     }
     sections.push(`🟢 *You receive:*`);
     for (const tx of summary.receivables) {
-      sections.push(`• ${tx.fromDisplayName} — ${formatPaise(tx.amount)}`);
+      sections.push(`• ${escapeMarkdown(tx.fromDisplayName)} — ${formatPaise(tx.amount)}`);
     }
   }
 
@@ -55,7 +56,7 @@ export function formatGroupSettlementPlan(plan: GroupSettlementPlan): string {
   ];
 
   for (const tx of plan.transactions) {
-    lines.push(`• ${tx.fromDisplayName} → ${tx.toDisplayName} ${formatPaise(tx.amount)}`);
+    lines.push(`• ${escapeMarkdown(tx.fromDisplayName)} → ${escapeMarkdown(tx.toDisplayName)} ${formatPaise(tx.amount)}`);
   }
 
   lines.push('');
