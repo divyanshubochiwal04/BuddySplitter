@@ -24,7 +24,7 @@ export async function handlePrivacy(ctx: Context): Promise<void> {
       '',
       '• *Data Minimization*: We only store data strictly needed for expense splitting (Telegram ID, name, splits, repayments).',
       '• *No Message Scraping*: BuddySplitter never logs, reads, or stores general chat messages.',
-      '• *User Control*: Use /my_data to view your data or /delete_my_data to request profile anonymization.',
+      '• *User Control*: Use /my\\_data to view your data or /delete\\_my\\_data to request profile anonymization.',
       '',
       '_This document describes BuddySplitter’s intended data practices. Applicable legal requirements may vary by jurisdiction._',
     ].join('\n');
@@ -44,7 +44,7 @@ export async function handlePrivacy(ctx: Context): Promise<void> {
     '',
     '• *Data Minimization*: We store only what is needed for expense tracking (names, splits, repayments).',
     '• *No Message Scraping*: BuddySplitter never reads or saves general chat messages.',
-    '• *Your Control*: Use /my_data to inspect your stored information or /delete_my_data to anonymize your profile.',
+    '• *Your Control*: Use /my\\_data to inspect your stored information or /delete\\_my\\_data to anonymize your profile.',
     '',
     '_This document describes BuddySplitter’s intended data practices. Applicable legal requirements may vary by jurisdiction._',
   ].join('\n');

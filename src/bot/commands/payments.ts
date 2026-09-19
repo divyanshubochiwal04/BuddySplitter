@@ -1,6 +1,7 @@
 import { Context } from 'grammy';
 import { BotServices } from '../../modules/services';
 import { formatPaise } from '../../shared/currency';
+import { escapeMarkdown } from '../../shared/markdown';
 import { buildPaymentsHistoryKeyboard } from '../keyboards/settlement.keyboard';
 import { logger } from '../../shared/logger';
 import { safeErrorMessage } from '../../shared/errors';
@@ -64,7 +65,7 @@ export function createPaymentsCommandHandler(services: BotServices) {
       const lines: string[] = [`💸 *Recent Payments*\n`];
 
       for (const p of payments) {
-        lines.push(`• *${p.fromDisplayName}* paid *${p.toDisplayName}* ${formatPaise(p.amount)}`);
+        lines.push(`• *${escapeMarkdown(p.fromDisplayName)}* paid *${escapeMarkdown(p.toDisplayName)}* ${formatPaise(p.amount)}`);
         lines.push(`  _${formatDate(p.settledAt)}_`);
       }
 

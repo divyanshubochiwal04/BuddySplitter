@@ -53,7 +53,7 @@ export function createMyDataCommandHandler(services: BotServices) {
         '',
         '🔒 *Privacy & Data Rights*',
         'BuddySplitter only retains operational expense accounting records.',
-        'To remove your personal identity data, use /delete_my_data.',
+        'To remove your personal identity data, use /delete\\_my\\_data.',
       ].join('\n');
 
       await ctx.reply(message, { parse_mode: 'Markdown' });

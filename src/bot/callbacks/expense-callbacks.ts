@@ -21,6 +21,7 @@ import {
   MemberOption,
 } from '../keyboards';
 import { logger } from '../../shared/logger';
+import { escapeMarkdown } from '../../shared/markdown';
 
 export async function handleExpenseCallback(
   ctx: Context,
@@ -254,7 +255,7 @@ export async function handleExpenseCallback(
 
     await ctx.answerCallbackQuery();
     await ctx.reply(
-      `💰 Enter *${firstMember?.name || 'First participant'}*'s share in ₹:`,
+      `💰 Enter *${escapeMarkdown(firstMember?.name || 'First participant')}*'s share in ₹:`,
       {
         parse_mode: 'Markdown',
         reply_markup: buildCancelRow('exp:cancel'),
@@ -277,7 +278,7 @@ export async function handleExpenseCallback(
 
     await ctx.answerCallbackQuery();
     await ctx.reply(
-      `📊 Enter *${firstMember?.name || 'First participant'}*'s share percentage (0-100%):`,
+      `📊 Enter *${escapeMarkdown(firstMember?.name || 'First participant')}*'s share percentage (0-100%):`,
       {
         parse_mode: 'Markdown',
         reply_markup: buildCancelRow('exp:cancel'),
@@ -361,7 +362,7 @@ export async function handleExpenseCallback(
       expenseStateManager.clearState(chatId, userId);
 
       const successText = draft.editingExpenseId
-        ? `✅ Expense "*${draft.description!}*" updated successfully!\n\nGroup balances have been recalculated.`
+        ? `✅ Expense "*${escapeMarkdown(draft.description!)}*" updated successfully!\n\nGroup balances have been recalculated.`
         : formatExpenseSuccess(
             draft.description!,
             draft.totalAmount!,

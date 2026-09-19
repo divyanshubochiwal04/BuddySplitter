@@ -20,6 +20,7 @@ import {
   MemberOption,
 } from '../../bot/keyboards';
 import { formatPaise } from '../../shared/currency';
+import { escapeMarkdown } from '../../shared/markdown';
 import { logger } from '../../shared/logger';
 
 /**
@@ -172,7 +173,7 @@ export async function handleExpenseTextInput(
             customSplitIndex: nextIndex,
           });
 
-          await ctx.reply(`💰 Enter *${nextName}*'s share in ₹:`, {
+          await ctx.reply(`💰 Enter *${escapeMarkdown(nextName)}*'s share in ₹:`, {
             parse_mode: 'Markdown',
             reply_markup: buildCancelRow('exp:cancel'),
           });
@@ -192,7 +193,7 @@ export async function handleExpenseTextInput(
             const firstName = firstMember?.displayName || 'First participant';
 
             await ctx.reply(
-              `❌ The split total is ${formatPaise(diffPaise)} ${status} of the total amount (${formatPaise(draft.totalAmount!)}).\n\nLet's re-enter the custom amounts.\n\n💰 Enter *${firstName}*'s share in ₹:`,
+              `❌ The split total is ${formatPaise(diffPaise)} ${status} of the total amount (${formatPaise(draft.totalAmount!)}).\n\nLet's re-enter the custom amounts.\n\n💰 Enter *${escapeMarkdown(firstName)}*'s share in ₹:`,
               {
                 parse_mode: 'Markdown',
                 reply_markup: buildCancelRow('exp:cancel'),
@@ -248,7 +249,7 @@ export async function handleExpenseTextInput(
             customSplitIndex: nextIndex,
           });
 
-          await ctx.reply(`📊 Enter *${nextName}*'s share percentage (0-100%):`, {
+          await ctx.reply(`📊 Enter *${escapeMarkdown(nextName)}*'s share percentage (0-100%):`, {
             parse_mode: 'Markdown',
             reply_markup: buildCancelRow('exp:cancel'),
           });
@@ -292,7 +293,7 @@ export async function handleExpenseTextInput(
             const firstName = firstMember?.displayName || 'First participant';
 
             await ctx.reply(
-              `❌ ${err.message || 'Total percentages must equal 100%'}.\n\nLet's re-enter percentages.\n\n📊 Enter *${firstName}*'s share percentage (0-100%):`,
+              `❌ ${err.message || 'Total percentages must equal 100%'}.\n\nLet's re-enter percentages.\n\n📊 Enter *${escapeMarkdown(firstName)}*'s share percentage (0-100%):`,
               {
                 parse_mode: 'Markdown',
                 reply_markup: buildCancelRow('exp:cancel'),

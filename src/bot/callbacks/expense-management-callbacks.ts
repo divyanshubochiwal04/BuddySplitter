@@ -2,6 +2,7 @@ import { Context } from 'grammy';
 import { BotServices } from '../../modules/services';
 import { logger } from '../../shared/logger';
 import { formatPaise } from '../../shared/currency';
+import { escapeMarkdown } from '../../shared/markdown';
 import { expenseEditStateManager } from '../../modules/expenses/expense-edit-state';
 import { expenseStateManager } from '../../modules/expenses/expense-state';
 import { validateDescription } from '../../modules/expenses/expense-validation';
@@ -205,7 +206,7 @@ export async function handleExpenseManagementCallback(
 
       await ctx.answerCallbackQuery();
 
-      let message = `✏️ *Edit Expense*\n\n*${details.description}* (${formatPaise(details.totalAmount)})\n\n`;
+      let message = `✏️ *Edit Expense*\n\n*${escapeMarkdown(details.description)}* (${formatPaise(details.totalAmount)})\n\n`;
       if (details.hasRepayments) {
         message +=
           `⚠️ *This expense has related repayments.*\n` +
@@ -259,7 +260,7 @@ export async function handleExpenseManagementCallback(
 
       const message =
         `📝 *Edit Description*\n\n` +
-        `Current description: *${details.description}*\n\n` +
+        `Current description: *${escapeMarkdown(details.description)}*\n\n` +
         `Please send the new description for this expense:`;
       const keyboard = buildCancelEditDescriptionKeyboard(details.id, page);
 
@@ -320,7 +321,7 @@ export async function handleExpenseManagementCallback(
 
       const prompt =
         `💰 *Edit Expense: Amount*\n\n` +
-        `Editing *${details.description}*\n` +
+        `Editing *${escapeMarkdown(details.description)}*\n` +
         `Current total: ${formatPaise(details.totalAmount)}\n\n` +
         `Enter the new amount in ₹ (e.g. 2400 or 2400.50):`;
 
@@ -396,7 +397,7 @@ export async function handleExpenseEditTextInput(
     );
 
     const message =
-      `✅ Description updated to "*${newDescription}*"!\n\n` +
+      `✅ Description updated to "*${escapeMarkdown(newDescription)}*"!\n\n` +
       formatExpenseDetailsMessage(details);
     const keyboard = buildExpenseDetailsKeyboard(details.id, editState.page, details.canManage);
 

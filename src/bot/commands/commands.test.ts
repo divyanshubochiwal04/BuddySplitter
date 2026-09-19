@@ -11,6 +11,7 @@ import {
 } from '../messages';
 import { CommandContext, Context } from 'grammy';
 import { BotServices } from '../../modules/services';
+import { validateTelegramMarkdown } from '../../shared/markdown';
 
 describe('Bot Commands and Messages', () => {
   it('has the exact required start message content', () => {
@@ -72,7 +73,17 @@ describe('Bot Commands and Messages', () => {
     expect(HELP_MESSAGE).toContain('/payments');
     expect(HELP_MESSAGE).toContain('/expenses');
     expect(HELP_MESSAGE).toContain('/members');
+    expect(HELP_MESSAGE).toContain('/privacy');
+    expect(HELP_MESSAGE).toContain('/my\\_data');
+    expect(HELP_MESSAGE).toContain('/delete\\_my\\_data');
     expect(HELP_MESSAGE).toContain('/cancel');
+    expect(validateTelegramMarkdown(HELP_MESSAGE)).toEqual({ isValid: true });
+  });
+
+  it('verifies all static bot messages have valid Markdown v1 formatting', () => {
+    expect(validateTelegramMarkdown(PRIVATE_START_MESSAGE)).toEqual({ isValid: true });
+    expect(validateTelegramMarkdown(GROUP_START_MESSAGE)).toEqual({ isValid: true });
+    expect(validateTelegramMarkdown(UNKNOWN_COMMAND_MESSAGE)).toEqual({ isValid: true });
   });
 
   it('handles /cancel command', async () => {

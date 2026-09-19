@@ -1,6 +1,7 @@
 import { Context } from 'grammy';
 import { BotServices } from '../services';
 import { formatPaise, toPaise } from '../../shared/currency';
+import { escapeMarkdown } from '../../shared/markdown';
 import { logger } from '../../shared/logger';
 import { paymentStateManager } from './payment-state';
 import {
@@ -177,7 +178,7 @@ export async function handleChooseFullAmount(ctx: Context): Promise<void> {
 
   const message =
     `💸 *Confirm Payment*\n\n` +
-    `• *To:* ${draft.recipientDisplayName}\n` +
+    `• *To:* ${escapeMarkdown(draft.recipientDisplayName)}\n` +
     `• *Amount:* ${formatPaise(draft.maxAmount)}\n\n` +
     `Are you sure you want to record this payment?`;
   const keyboard = buildPaymentConfirmationKeyboard();
@@ -210,7 +211,7 @@ export async function handleChooseCustomAmount(ctx: Context): Promise<void> {
 
   const message =
     `💸 *Enter Payment Amount*\n\n` +
-    `How much did you pay *${draft.recipientDisplayName}* in ₹?\n` +
+    `How much did you pay *${escapeMarkdown(draft.recipientDisplayName)}* in ₹?\n` +
     `Maximum allowed: *${formatPaise(draft.maxAmount)}*\n\n` +
     `_Reply with the amount (e.g. 250 or 250.50)_`;
   const keyboard = buildCancelPaymentKeyboard();
@@ -269,7 +270,7 @@ export async function handlePaymentTextInput(
 
   const message =
     `💸 *Confirm Payment*\n\n` +
-    `• *To:* ${draft.recipientDisplayName}\n` +
+    `• *To:* ${escapeMarkdown(draft.recipientDisplayName)}\n` +
     `• *Amount:* ${formatPaise(amountPaise)}\n\n` +
     `Are you sure you want to record this payment?`;
   const keyboard = buildPaymentConfirmationKeyboard();
@@ -333,8 +334,8 @@ export async function handleConfirmPayment(
 
     const message =
       `✅ *Payment Recorded!*\n\n` +
-      `• *Payer:* ${result.fromDisplayName}\n` +
-      `• *Recipient:* ${result.toDisplayName}\n` +
+      `• *Payer:* ${escapeMarkdown(result.fromDisplayName)}\n` +
+      `• *Recipient:* ${escapeMarkdown(result.toDisplayName)}\n` +
       `• *Amount:* ${formatPaise(result.settlement.amount)}\n\n` +
       `Group balances and settlements have been updated.`;
     const keyboard = buildPaymentSuccessKeyboard();

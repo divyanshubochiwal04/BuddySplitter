@@ -330,7 +330,7 @@ describe('Phase 11 — Security & Compliance Test Suite', () => {
         expect.any(Object)
       );
       expect(replyMock).toHaveBeenCalledWith(
-        expect.stringContaining('/delete_my_data'),
+        expect.stringContaining('/delete\\_my\\_data'),
         expect.any(Object)
       );
     });

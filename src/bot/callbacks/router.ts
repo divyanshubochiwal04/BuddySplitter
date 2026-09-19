@@ -22,6 +22,7 @@ import { handlePaymentCallback } from './payment-callbacks';
 import { startExpenseFlow } from '../../modules/expenses/expense-flow';
 import { logger } from '../../shared/logger';
 import { formatPaise } from '../../shared/currency';
+import { escapeMarkdown } from '../../shared/markdown';
 import { expenseStateManager } from '../../modules/expenses/expense-state';
 import { paymentStateManager } from '../../modules/settlements/payment-state';
 import { expenseEditStateManager } from '../../modules/expenses/expense-edit-state';
@@ -230,7 +231,7 @@ export function createCallbackRouter(services: BotServices) {
           }
           const lines: string[] = [`💳 *Recent Payments*\n`];
           for (const p of payments) {
-            lines.push(`• *${p.fromDisplayName}* paid *${p.toDisplayName}* ${formatPaise(p.amount)}`);
+            lines.push(`• *${escapeMarkdown(p.fromDisplayName)}* paid *${escapeMarkdown(p.toDisplayName)}* ${formatPaise(p.amount)}`);
             lines.push(`  _${fmtPaymentDate(p.settledAt)}_`);
           }
           lines.push('');
