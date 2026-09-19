@@ -216,8 +216,8 @@ The database is built on PostgreSQL via Supabase, with full relational integrity
 ### 1. Clone & Install
 
 ```bash
-git clone https://github.com/your-username/buddy-splitter.git
-cd buddy-splitter
+git clone https://github.com/divyanshubochiwal04/BuddySplitter.git
+cd BuddySplitter
 npm install
 ```
 
