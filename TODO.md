@@ -100,10 +100,34 @@
   - Zero database persistence: recommendations are non-destructive previews (repayments and status tracking deferred to Phase 8).
   - 33 unit test suites with 188 passing tests.
 
-- [ ] **Phase 8: Repayments**
-  - Record payments / settlements between members (`/pay` or `/settled`).
-  - Balance updates upon repayment confirmation.
-  - Payment audit trail.
+- [x] **Phase 8: Repayment & Settlement Tracking**
+  - Trackable, immutable repayments using existing PostgreSQL `settlements` table (`id`, `group_id`, `from_user_id`, `to_user_id`, `amount`, `currency`, `status`, `created_by`, `settled_at`, `created_at`).
+  - Repayments are NOT expenses: expenses and splits remain completely untouched with full auditability.
+  - Only `status = 'paid'` adjusts balances; `pending` and `cancelled` rows are ignored.
+  - Balance reconciliation model (`reconcileBalances`):
+    - Raw expense balance: `paidAmount - owedAmount = rawBalance`.
+    - Payments made: sum of paid settlements as sender.
+    - Payments received: sum of paid settlements as recipient.
+    - Outstanding net balance: `rawBalance + paymentsMade - paymentsReceived`.
+    - Mathematical conservation invariant: `SUM(outstandingNet) === 0` holds strictly.
+  - Dynamic remaining settlement plan:
+    - Feeding reconciled balances to greedy settlement engine dynamically generates remaining transactions.
+    - Full repayments completely remove debts from recommendations; partial repayments reduce debts accordingly.
+  - Payment recording wizard:
+    - Initiated via `[💸 Record Payment]` (`pay:start`) or `/settle`.
+    - Recipient selection button (`pay:to:<userId>`).
+    - Full amount (`pay:amt:full`) or partial custom amount (`pay:amt:custom`) selection.
+    - Reply with custom amount validated in integer minor units (paise: ₹1 = 100 paise).
+    - Overpayment protection: rejects payment exceeding current debt with exact message `❌ Payment exceeds the current amount owed.`.
+    - Confirmation step (`pay:confirm`) and cancellation step (`pay:cancel`).
+    - Idempotency lock (`SAVING` step) preventing duplicate submission on double taps.
+    - Payer authorization guard: only debtor (`from_user_id`) can confirm payment.
+  - Commands & Telegram UX:
+    - `/settle`: Personal settlement standing showing debts owed, credits receivable, and `[💸 Record Payment]` button when debts exist.
+    - `/payments`: Shows recent payment history (last 10 payments with formatted Indian timestamps).
+    - `/balance`: Shows updated standing with raw expense balance, payments made/received breakdown, and remaining outstanding net balance.
+    - `/summary`: Group summary breakdown reflecting remaining outstanding balances.
+  - 38 unit test suites with 229 passing tests.
 
 - [ ] **Phase 9: Expense Management**
   - View expense history (`/history`).

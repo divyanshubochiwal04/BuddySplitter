@@ -33,6 +33,23 @@ export class SettlementRepository {
     return data ?? [];
   }
 
+  async findPaidByGroupId(groupId: string): Promise<SettlementRow[]> {
+    return this.findByGroupId(groupId, 'paid');
+  }
+
+  async findRecentPaidByGroupId(groupId: string, limit = 10): Promise<SettlementRow[]> {
+    const { data, error } = await this.client
+      .from('settlements')
+      .select('*')
+      .eq('group_id', groupId)
+      .eq('status', 'paid')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+    return data ?? [];
+  }
+
   async create(data: SettlementInsert): Promise<SettlementRow> {
     if (data.from_user_id === data.to_user_id) {
       throw new ValidationError('from_user_id cannot be the same as to_user_id');

@@ -21,7 +21,10 @@ export function createSettleCommandHandler(services: BotServices) {
         );
 
       const message = formatUserSettlementSummary(userSummary);
-      const keyboard = buildUserSettlementKeyboard(groupPlan.transactions.length > 0);
+      const keyboard = buildUserSettlementKeyboard(
+        groupPlan.transactions.length > 0,
+        userSummary.payments.length > 0
+      );
 
       await ctx.reply(message, {
         parse_mode: 'Markdown',

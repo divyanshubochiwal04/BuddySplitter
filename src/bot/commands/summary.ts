@@ -13,10 +13,16 @@ export function createSummaryCommandHandler(services: BotServices) {
     }
 
     try {
-      const summary = await services.balanceService.getGroupSummaryForTelegram(
-        ctx.chat.id,
-        ctx.from.id
-      );
+      const summary =
+        typeof services.balanceService.getReconciledGroupSummaryForTelegram === 'function'
+          ? await services.balanceService.getReconciledGroupSummaryForTelegram(
+              ctx.chat.id,
+              ctx.from.id
+            )
+          : await services.balanceService.getGroupSummaryForTelegram(
+              ctx.chat.id,
+              ctx.from.id
+            );
 
       const message = formatGroupBalanceSummary(summary);
       await ctx.reply(message, { parse_mode: 'Markdown' });

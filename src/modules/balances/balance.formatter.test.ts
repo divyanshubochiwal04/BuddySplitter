@@ -164,5 +164,72 @@ describe('Balance Formatter', () => {
       const result = formatGroupBalanceSummary(summary);
       expect(result).toContain('💰 *Total expenses:* ₹10.00 (1 expense)');
     });
+
+    it('formats group summary with total settled payments when repayments exist', () => {
+      const summary = {
+        groupId: 'grp-1',
+        totalExpensesCount: 1,
+        totalExpensesAmount: 1000,
+        totalPaymentsCount: 1,
+        totalPaymentsAmount: 500,
+        creditors: [],
+        debtors: [],
+        settled: [
+          {
+            userId: 'u-1',
+            displayName: 'Alice',
+            paidAmount: 1000,
+            owedAmount: 500,
+            rawBalance: 500,
+            paymentsMade: 0,
+            paymentsReceived: 500,
+            outstandingNet: 0,
+            category: 'settled' as const,
+          },
+          {
+            userId: 'u-2',
+            displayName: 'Bob',
+            paidAmount: 0,
+            owedAmount: 500,
+            rawBalance: -500,
+            paymentsMade: 500,
+            paymentsReceived: 0,
+            outstandingNet: 0,
+            category: 'settled' as const,
+          },
+        ],
+        allBalances: [],
+      };
+
+      const result = formatGroupBalanceSummary(summary as any);
+      expect(result).toContain('💰 *Total expenses:* ₹10.00 (1 expense)');
+      expect(result).toContain('💸 *Total settled:* ₹5.00 (1 payment)');
+      expect(result).toContain('⚪ *Settled:*');
+      expect(result).toContain('• Alice');
+      expect(result).toContain('• Bob');
+    });
+
+    it('formats reconciled personal balance with payments breakdown', () => {
+      const balance = {
+        userId: 'u-2',
+        displayName: 'Bob',
+        paidAmount: 0,
+        owedAmount: 10000,
+        rawBalance: -10000,
+        paymentsMade: 5000,
+        paymentsReceived: 0,
+        outstandingNet: -5000,
+        category: 'debtor' as const,
+      };
+
+      const result = formatUserPersonalBalance(balance);
+      expect(result).toContain('🔴 *You owe:* ₹50.00');
+      expect(result).toContain('• *Paid:* ₹0.00');
+      expect(result).toContain('• *Your share:* ₹100.00');
+      expect(result).toContain('• *Expense net:* -₹100.00');
+      expect(result).toContain('• *Payments made:* ₹50.00');
+      expect(result).toContain('• *Payments received:* ₹0.00');
+      expect(result).toContain('• *Outstanding:* -₹50.00');
+    });
   });
 });

@@ -13,6 +13,7 @@ function createMockClient() {
     single: vi.fn(),
     insert: vi.fn().mockReturnThis(),
     update: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockReturnThis(),
   };
 
   const client = {
@@ -127,5 +128,36 @@ describe('SettlementRepository', () => {
     });
     expect(result.status).toBe('cancelled');
     expect(result.settled_at).toBeNull();
+  });
+
+  it('finds paid settlements for a group', async () => {
+    const { client, queryBuilder } = createMockClient();
+    const mockPaid = [
+      { id: 'set-1', group_id: 'grp-1', status: 'paid', amount: 2000 },
+    ];
+    // query is thenable resolving to { data: mockPaid, error: null }
+    queryBuilder.order.mockResolvedValue({ data: mockPaid, error: null });
+
+    const repo = new SettlementRepository(client);
+    const result = await repo.findPaidByGroupId('grp-1');
+
+    expect(queryBuilder.eq).toHaveBeenCalledWith('group_id', 'grp-1');
+    expect(queryBuilder.eq).toHaveBeenCalledWith('status', 'paid');
+    expect(result).toEqual(mockPaid);
+  });
+
+  it('finds recent paid settlements with limit', async () => {
+    const { client, queryBuilder } = createMockClient();
+    const mockRecent = [
+      { id: 'set-2', group_id: 'grp-1', status: 'paid', amount: 1500 },
+      { id: 'set-1', group_id: 'grp-1', status: 'paid', amount: 2000 },
+    ];
+    queryBuilder.limit.mockResolvedValue({ data: mockRecent, error: null });
+
+    const repo = new SettlementRepository(client);
+    const result = await repo.findRecentPaidByGroupId('grp-1', 5);
+
+    expect(queryBuilder.limit).toHaveBeenCalledWith(5);
+    expect(result).toEqual(mockRecent);
   });
 });

@@ -237,4 +237,90 @@ describe('BalanceService', () => {
       expect(balance.category).toBe('settled');
     });
   });
+
+  describe('Reconciled Balances', () => {
+    it('returns reconciled balance summary accounting for paid settlements', async () => {
+      const mockSettlementRepo = {
+        findPaidByGroupId: vi.fn().mockResolvedValue([
+          {
+            id: 'set-1',
+            group_id: 'grp-1',
+            from_user_id: 'usr-2',
+            to_user_id: 'usr-1',
+            amount: 5000,
+            status: 'paid',
+          },
+        ]),
+      };
+
+      const reconciledService = new BalanceService(
+        mockExpenseRepo,
+        mockGroupRepo,
+        mockGroupMemberRepo,
+        mockUserRepo,
+        mockSettlementRepo as any
+      );
+
+      vi.mocked(mockGroupRepo.findById).mockResolvedValue({
+        id: 'grp-1',
+        telegram_chat_id: -1001,
+        title: 'Trip',
+        created_at: '',
+        updated_at: '',
+      });
+      vi.mocked(mockGroupMemberRepo.findActiveMembersByGroupId).mockResolvedValue([
+        {
+          id: 'gm-1',
+          group_id: 'grp-1',
+          user_id: 'usr-1',
+          display_name: 'Alice',
+          is_active: true,
+          joined_at: '',
+        },
+        {
+          id: 'gm-2',
+          group_id: 'grp-1',
+          user_id: 'usr-2',
+          display_name: 'Bob',
+          is_active: true,
+          joined_at: '',
+        },
+      ]);
+      vi.mocked(mockExpenseRepo.findActiveExpensesWithSplitsByGroupId).mockResolvedValue([
+        {
+          id: 'exp-1',
+          group_id: 'grp-1',
+          description: 'Lunch',
+          category: 'general',
+          total_amount: 10000,
+          paid_by: 'usr-1',
+          created_by: 'usr-1',
+          split_type: 'equal',
+          currency: 'INR',
+          expense_date: '',
+          created_at: '',
+          updated_at: '',
+          deleted_at: null,
+          splits: [
+            { id: 's1', expense_id: 'exp-1', user_id: 'usr-1', amount: 5000, percentage: null, shares: null, created_at: '' },
+            { id: 's2', expense_id: 'exp-1', user_id: 'usr-2', amount: 5000, percentage: null, shares: null, created_at: '' },
+          ],
+        },
+      ]);
+
+      const summary = await reconciledService.getReconciledGroupBalanceSummary('grp-1');
+      expect(summary.totalPaymentsCount).toBe(1);
+      expect(summary.totalPaymentsAmount).toBe(5000);
+
+      const bob = summary.allBalances.find((m) => m.userId === 'usr-2')!;
+      expect(bob.outstandingNet).toBe(0);
+      expect(bob.category).toBe('settled');
+
+      const userBalance = await reconciledService.getReconciledUserBalanceInGroup('grp-1', 'usr-2');
+      expect(userBalance.rawBalance).toBe(-5000);
+      expect(userBalance.paymentsMade).toBe(5000);
+      expect(userBalance.outstandingNet).toBe(0);
+      expect(userBalance.category).toBe('settled');
+    });
+  });
 });

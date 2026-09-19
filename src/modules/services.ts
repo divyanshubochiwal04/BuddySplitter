@@ -18,7 +18,8 @@ export function createServices(repositories: Repositories): BotServices {
     repositories.expenses,
     repositories.groups,
     repositories.groupMembers,
-    repositories.users
+    repositories.users,
+    repositories.settlements
   );
 
   return {
@@ -26,6 +27,12 @@ export function createServices(repositories: Repositories): BotServices {
     groupService: new GroupService(repositories.groups, repositories.groupMembers),
     expenseService: new ExpenseService(repositories.expenses, repositories.groupMembers),
     balanceService,
-    settlementService: new SettlementService(balanceService),
+    settlementService: new SettlementService(
+      balanceService,
+      repositories.settlements,
+      repositories.groups,
+      repositories.groupMembers,
+      repositories.users
+    ),
   };
 }

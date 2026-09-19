@@ -9,6 +9,7 @@ import { createComingSoonHandler } from './coming-soon';
 import { createBalanceCommandHandler } from './balance';
 import { createSummaryCommandHandler } from './summary';
 import { createSettleCommandHandler } from './settle';
+import { createPaymentsCommandHandler } from './payments';
 
 export function registerCommands(bot: Bot<Context>, services?: BotServices): void {
   if (services) {
@@ -18,12 +19,14 @@ export function registerCommands(bot: Bot<Context>, services?: BotServices): voi
     bot.command('balance', createBalanceCommandHandler(services));
     bot.command('summary', createSummaryCommandHandler(services));
     bot.command('settle', createSettleCommandHandler(services));
+    bot.command('payments', createPaymentsCommandHandler(services));
   } else {
     bot.command('start', handleStart);
     bot.command('add', createComingSoonHandler('Expense Tracking (/add)'));
     bot.command('balance', createComingSoonHandler('Personal Balance (/balance)'));
     bot.command('summary', createComingSoonHandler('Group Summary (/summary)'));
     bot.command('settle', createComingSoonHandler('Settlement Engine (/settle)'));
+    bot.command('payments', createComingSoonHandler('Payment History (/payments)'));
   }
 
   bot.command('help', handleHelp);
@@ -41,4 +44,5 @@ export * from './add';
 export * from './balance';
 export * from './summary';
 export * from './settle';
+export * from './payments';
 export * from './coming-soon';

@@ -98,6 +98,10 @@ describe('Settlement Bot Commands & Router Callbacks', () => {
         expect.stringContaining('• Alice — ₹1200.00'),
         expect.anything()
       );
+      const replyCall = replyMock.mock.calls[0];
+      const keyboard = replyCall[1].reply_markup;
+      const buttonsFlat = keyboard.inline_keyboard.flat();
+      expect(buttonsFlat.some((b: any) => b.callback_data === 'pay:start')).toBe(true);
     });
 
     it('handles errors gracefully in group chat', async () => {

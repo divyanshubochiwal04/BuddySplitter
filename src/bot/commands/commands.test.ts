@@ -69,6 +69,7 @@ describe('Bot Commands and Messages', () => {
     expect(HELP_MESSAGE).toContain('/balance');
     expect(HELP_MESSAGE).toContain('/summary');
     expect(HELP_MESSAGE).toContain('/settle');
+    expect(HELP_MESSAGE).toContain('/payments');
     expect(HELP_MESSAGE).toContain('/expenses');
     expect(HELP_MESSAGE).toContain('/members');
     expect(HELP_MESSAGE).toContain('/cancel');

@@ -13,10 +13,16 @@ export function createBalanceCommandHandler(services: BotServices) {
     }
 
     try {
-      const balance = await services.balanceService.getUserBalanceForTelegram(
-        ctx.chat.id,
-        ctx.from.id
-      );
+      const balance =
+        typeof services.balanceService.getReconciledUserBalanceForTelegram === 'function'
+          ? await services.balanceService.getReconciledUserBalanceForTelegram(
+              ctx.chat.id,
+              ctx.from.id
+            )
+          : await services.balanceService.getUserBalanceForTelegram(
+              ctx.chat.id,
+              ctx.from.id
+            );
 
       const message = formatUserPersonalBalance(balance);
       await ctx.reply(message, { parse_mode: 'Markdown' });

@@ -32,3 +32,40 @@ export interface UserPersonalBalance {
   netBalance: number; // minor units (paise)
   category: BalanceCategory;
 }
+
+export interface ReconciledMemberBalance {
+  userId: string;
+  displayName: string;
+  paidAmount: number; // minor units (paise) from expenses
+  owedAmount: number; // minor units (paise) from expenses
+  rawBalance: number; // paidAmount - owedAmount
+  paymentsMade: number; // sum of paid settlements as sender
+  paymentsReceived: number; // sum of paid settlements as recipient
+  outstandingNet: number; // rawBalance + paymentsMade - paymentsReceived
+  category: BalanceCategory;
+}
+
+export interface ReconciledGroupBalanceSummary {
+  groupId: string;
+  totalExpensesCount: number;
+  totalExpensesAmount: number; // minor units (paise)
+  totalPaymentsCount: number;
+  totalPaymentsAmount: number; // minor units (paise)
+  creditors: ReconciledMemberBalance[];
+  debtors: ReconciledMemberBalance[];
+  settled: ReconciledMemberBalance[];
+  allBalances: ReconciledMemberBalance[];
+}
+
+export interface ReconciledUserPersonalBalance {
+  userId: string;
+  displayName: string;
+  paidAmount: number; // total expenses paid
+  owedAmount: number; // total expense share
+  rawBalance: number; // paidAmount - owedAmount
+  paymentsMade: number; // settlements paid
+  paymentsReceived: number; // settlements received
+  outstandingNet: number; // rawBalance + paymentsMade - paymentsReceived
+  category: BalanceCategory;
+}
+

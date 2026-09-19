@@ -367,15 +367,66 @@ Expense creation in BuddySplitter is an interactive multi-step wizard conducted 
 
 ---
 
-## 7. Callback Query Protocol Reference
+---
+
+## 7. Repayment & Payment Tracking Flow (Phase 8)
+
+BuddySplitter allows debtors to record and confirm repayments directly inside the group.
+
+### Conversational Lifecycle
+```text
+[/settle / [💸 Record Payment]]
+            │
+            ▼
+   [AWAITING_RECIPIENT]      ──(inline buttons)───► Pick member to pay
+            │
+            ▼
+ [AWAITING_AMOUNT_CHOICE]   ──(inline buttons)───► [Full: ₹...] or [Partial Amount]
+            │
+            ├── Full Amount ────────────────────────┐
+            └── Partial Amount ──► [CUSTOM_AMOUNT]  │
+                                   ──(reply text)───┤ (Validate <= current debt)
+                                                    ▼
+                                           [CONFIRMATION]
+                                           [✅ Confirm Payment] [❌ Cancel]
+                                                    │
+                                                    ▼
+                                           [SAVING] (Idempotent lock)
+                                                    │
+                                                    ▼
+                                           Database Settlement Insert
+                                           (status: 'paid', settled_at: now())
+                                                    │
+                                                    ▼
+                                           Success Announcement & Updated Balances
+```
+
+### Balance Reconciliation Model
+- **Raw Expenses**: `paidAmount - owedAmount = rawBalance` (always preserved for audit).
+- **Repayment Adjustments**:
+  - `paymentsMade`: sum of paid settlements sent by user.
+  - `paymentsReceived`: sum of paid settlements received by user.
+  - `outstandingNet = rawBalance + paymentsMade - paymentsReceived`.
+- **Conservation Invariant**: `SUM(outstandingNet) === 0` holds strictly.
+- **Dynamic Plan Updates**: Fully settled debts vanish from settlement plan; partial repayments reduce remaining debt.
+
+---
+
+## 8. Callback Query Protocol Reference
 
 | Callback Data Pattern | Handler | Action Description |
 | :--- | :--- | :--- |
 | `action:add_expense` | `router.ts` | Entry point from group menu to start `/add` flow |
 | `action:my_balance` | `router.ts` | Displays calling user's personal balance in current group |
 | `action:summary` | `router.ts` | Displays full group balance summary breakdown |
-| `action:settle_up` | `router.ts` | Displays user's personal settlement actions with `[📊 Full Plan]` button |
+| `action:settle_up` | `router.ts` | Displays user's personal settlement actions with `[📊 Full Plan]` and `[💸 Record Payment]` |
 | `settle:full` | `router.ts` | Displays full group recommended settlement transactions |
+| `pay:start` | `payment-callbacks.ts` | Initiates repayment wizard showing member debtor list |
+| `pay:to:<userId>` | `payment-callbacks.ts` | Selects recipient and prompts for full vs partial amount |
+| `pay:amt:full` | `payment-callbacks.ts` | Sets full outstanding debt amount and shows confirmation |
+| `pay:amt:custom` | `payment-callbacks.ts` | Prompts user to type custom partial repayment amount |
+| `pay:confirm` | `payment-callbacks.ts` | Idempotently records repayment with `status: 'paid'` |
+| `pay:cancel` | `payment-callbacks.ts` | Cancels repayment wizard and clears draft session |
 | `exp:payer:me` | `expense-callbacks.ts` | Assigns current user as payer |
 | `exp:payer:pick` | `expense-callbacks.ts` | Renders list of group members to select payer |
 | `exp:payer:set:<userId>` | `expense-callbacks.ts` | Assigns selected member as payer |
@@ -394,16 +445,19 @@ Expense creation in BuddySplitter is an interactive multi-step wizard conducted 
 
 ---
 
-## 8. Security & Validation Checklist
+## 9. Security & Validation Checklist
 
 - [x] BigInt Telegram ID safe representation.
 - [x] Money stored exclusively in integer minor units (paise). Zero floating point operations in database or calculations.
 - [x] Payer and participants strictly validated to belong to the active group.
-- [x] Double-tap protection using `SAVING` atomic lock.
+- [x] Double-tap protection using `SAVING` atomic lock in both expense and payment flows.
 - [x] Orphan expense protection via automatic rollback on split insert failure.
 - [x] 15-minute TTL per draft to prevent memory leaks.
 - [x] Isolated state keys preventing cross-user race conditions.
 - [x] Mathematical conservation invariant: `SUM(netBalance) === 0` audited across every balance calculation.
 - [x] Settlement conservation invariant: `SUM(transactions) === SUM(positive netBalances)` with simulated residual balances audited to 0.
-- [x] Zero database writes for settlement recommendations (read-only advisory preview).
+- [x] Repayments do not mutate expenses: expenses and splits remain immutable.
+- [x] Overpayment rejection: payments exceeding current debt to recipient rejected with exact message `❌ Payment exceeds the current amount owed.`.
+- [x] Payer authorization: only debtor (`from_user_id`) can confirm payment.
+
 

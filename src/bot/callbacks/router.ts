@@ -17,6 +17,7 @@ import {
   buildGroupSettlementKeyboard,
 } from '../keyboards/settlement.keyboard';
 import { handleExpenseCallback } from './expense-callbacks';
+import { handlePaymentCallback } from './payment-callbacks';
 import { startExpenseFlow } from '../../modules/expenses/expense-flow';
 import { logger } from '../../shared/logger';
 
@@ -49,6 +50,11 @@ export function createCallbackRouter(services: BotServices) {
 
       const expenseHandled = await handleExpenseCallback(ctx, data, services);
       if (expenseHandled) {
+        return;
+      }
+
+      const paymentHandled = await handlePaymentCallback(ctx, data, services);
+      if (paymentHandled) {
         return;
       }
 
@@ -131,10 +137,16 @@ export function createCallbackRouter(services: BotServices) {
           return;
         }
         try {
-          const balance = await services.balanceService.getUserBalanceForTelegram(
-            ctx.chat.id,
-            ctx.from.id
-          );
+          const balance =
+            typeof services.balanceService.getReconciledUserBalanceForTelegram === 'function'
+              ? await services.balanceService.getReconciledUserBalanceForTelegram(
+                  ctx.chat.id,
+                  ctx.from.id
+                )
+              : await services.balanceService.getUserBalanceForTelegram(
+                  ctx.chat.id,
+                  ctx.from.id
+                );
           await ctx.reply(formatUserPersonalBalance(balance), {
             parse_mode: 'Markdown',
             reply_markup: buildBackRow('menu:group'),
@@ -152,10 +164,16 @@ export function createCallbackRouter(services: BotServices) {
           return;
         }
         try {
-          const summary = await services.balanceService.getGroupSummaryForTelegram(
-            ctx.chat.id,
-            ctx.from.id
-          );
+          const summary =
+            typeof services.balanceService.getReconciledGroupSummaryForTelegram === 'function'
+              ? await services.balanceService.getReconciledGroupSummaryForTelegram(
+                  ctx.chat.id,
+                  ctx.from.id
+                )
+              : await services.balanceService.getGroupSummaryForTelegram(
+                  ctx.chat.id,
+                  ctx.from.id
+                );
           await ctx.reply(formatGroupBalanceSummary(summary), {
             parse_mode: 'Markdown',
             reply_markup: buildBackRow('menu:group'),
@@ -179,7 +197,10 @@ export function createCallbackRouter(services: BotServices) {
               ctx.from.id
             );
           const message = formatUserSettlementSummary(userSummary);
-          const keyboard = buildUserSettlementKeyboard(groupPlan.transactions.length > 0);
+          const keyboard = buildUserSettlementKeyboard(
+            groupPlan.transactions.length > 0,
+            userSummary.payments.length > 0
+          );
           await ctx.reply(message, {
             parse_mode: 'Markdown',
             reply_markup: keyboard,

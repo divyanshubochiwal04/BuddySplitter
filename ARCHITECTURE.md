@@ -217,6 +217,44 @@ Telegram Handlers (/settle, action:settle_up, settle:full)
   $$\sum \text{transaction.amount} = \sum_{M, \text{netBalance} > 0} \text{netBalance}_M = \sum_{M, \text{netBalance} < 0} |\text{netBalance}_M|$$
 - **Simulation Invariant Audit:** The calculator simulates applying every generated transaction against initial member balances and asserts that every member's remaining balance resolves to exactly $0$ paise.
 
+---
+
+## 12. Repayment & Settlement Tracking Engine (`src/modules/settlements/`)
+
+Phase 8 converts settlement recommendations into trackable, immutable repayments without modifying original expenses.
+
+### 12.1 Repayment Model
+- Repayments are recorded in the PostgreSQL `settlements` table:
+  - `id`: Unique UUID identifier.
+  - `group_id`: Group database UUID.
+  - `from_user_id`: Debtor making the payment.
+  - `to_user_id`: Creditor receiving the payment.
+  - `amount`: Stored in integer minor units (paise: ₹1 = 100 paise).
+  - `status`: `'paid'`, `'pending'`, or `'cancelled'`. Only `'paid'` affects financial balances.
+  - `settled_at`: Timestamp when the payment occurred.
+  - `created_by`: User recording the transaction.
+- **Expenses Are Never Modified:** Repayments are independent ledger events. The audit history of all expenses and individual splits remains immutable.
+
+### 12.2 Balance Reconciliation Model
+- For member $M$:
+  - $\text{rawBalance} = \text{paidAmount} - \text{owedAmount}$
+  - $\text{paymentsMade} = \sum \text{amount}$ where $\text{from\_user\_id} = M.\text{userId} \land \text{status} = \text{'paid'}$
+  - $\text{paymentsReceived} = \sum \text{amount}$ where $\text{to\_user\_id} = M.\text{userId} \land \text{status} = \text{'paid'}$
+  - $\text{outstandingNet} = \text{rawBalance} + \text{paymentsMade} - \text{paymentsReceived}$
+- **Conservation Law:**
+  $$\sum_M \text{outstandingNet} = \sum_M \text{rawBalance} + \sum_M (\text{paymentsMade} - \text{paymentsReceived}) = 0 + 0 = 0$$
+
+### 12.3 Dynamic Settlement Plan Recomputation
+- Passing reconciled balances ($\text{outstandingNet}$) into `calculateSettlements` dynamically recalculates the remaining settlement plan.
+- Fully repaid debts disappear; partial repayments reduce remaining obligations.
+
+### 12.4 Validation & Protection
+- **Overpayment Guard:** Payments exceeding the current outstanding debt to the recipient are rejected with `❌ Payment exceeds the current amount owed.`.
+- **Self-Payment Guard:** Debtor and recipient must be distinct members (`from_user_id != to_user_id`).
+- **Authorization Guard:** Only the payer can record or confirm their payment.
+- **Idempotency Guard:** `PaymentStateManager` uses a `SAVING` lock to prevent duplicate records upon rapid double-tapping.
+
+
 
 
 
