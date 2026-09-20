@@ -4,8 +4,8 @@ import { expenseStateManager, ExpenseDraft, ExpenseFlowStep } from './expense-st
 import {
   validateDescription,
   parseAndValidateAmount,
-  parseQuickAddExpense,
-  QuickAddErrorType,
+  parseExpenseInput,
+  ExpenseParseErrorType,
 } from './expense-validation';
 import { validateCustomSplits } from './split/custom';
 import { calculatePercentageSplit } from './split/percentage';
@@ -13,6 +13,8 @@ import { calculateEqualSplit } from './split/equal';
 import { calculateSharesSplit } from './split/shares';
 import {
   QUICK_ADD_PROMPT,
+  CMD_ADD_MISSING_AMOUNT_MESSAGE,
+  CMD_ADD_INVALID_AMOUNT_MESSAGE,
   QUICK_ADD_MISSING_AMOUNT_MESSAGE,
   QUICK_ADD_INVALID_AMOUNT_MESSAGE,
   QUICK_ADD_MISSING_DESCRIPTION_MESSAGE,
@@ -31,8 +33,22 @@ import { formatPaise } from '../../shared/currency';
 import { escapeMarkdown } from '../../shared/markdown';
 import { ValidationError } from '../../shared/errors';
 import { logger } from '../../shared/logger';
+import { checkUserRateLimit, RATE_LIMIT_EXCEEDED_MESSAGE } from '../../shared/rate-limiter';
 
-function getQuickAddErrorMessage(errorType: QuickAddErrorType): string {
+export function getCmdAddErrorMessage(errorType: ExpenseParseErrorType): string {
+  switch (errorType) {
+    case 'MISSING_AMOUNT':
+      return CMD_ADD_MISSING_AMOUNT_MESSAGE;
+    case 'INVALID_AMOUNT':
+      return CMD_ADD_INVALID_AMOUNT_MESSAGE;
+    case 'MISSING_DESCRIPTION':
+      return QUICK_ADD_MISSING_DESCRIPTION_MESSAGE;
+    default:
+      return QUICK_ADD_MALFORMED_MESSAGE;
+  }
+}
+
+export function getQuickAddErrorMessage(errorType: ExpenseParseErrorType): string {
   switch (errorType) {
     case 'MISSING_AMOUNT':
       return QUICK_ADD_MISSING_AMOUNT_MESSAGE;
@@ -45,7 +61,16 @@ function getQuickAddErrorMessage(errorType: QuickAddErrorType): string {
   }
 }
 
-async function showConfirmation(ctx: Context, draft: ExpenseDraft): Promise<void> {
+export function extractAddCommandArgs(ctx: Context): string {
+  if (typeof (ctx as any).match === 'string' && (ctx as any).match.trim().length > 0) {
+    return (ctx as any).match.trim();
+  }
+  const text = ctx.message?.text?.trim() || '';
+  const match = text.match(/^\/add(?:@\w+)?(?:\s+(.*))?$/is);
+  return match?.[1]?.trim() || '';
+}
+
+export async function showConfirmation(ctx: Context, draft: ExpenseDraft): Promise<void> {
   await ctx.reply(formatExpenseConfirmation(draft), {
     parse_mode: 'Markdown',
     reply_markup: buildExpenseConfirmationKeyboard(),
@@ -53,13 +78,12 @@ async function showConfirmation(ctx: Context, draft: ExpenseDraft): Promise<void
 }
 
 /**
- * Initiates the Quick Add expense creation flow.
- * If initialText is passed (e.g. from `/add Dinner 1200`), it is immediately parsed.
+ * Starts quick-add mode (waiting for user to send text description and amount).
+ * Used when user runs `/add` with no arguments or clicks `➕ Add Expense`.
  */
-export async function startExpenseFlow(
+export async function startQuickAdd(
   ctx: Context,
-  services: BotServices,
-  initialText?: string
+  services: BotServices
 ): Promise<void> {
   const isGroup = ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup';
 
@@ -99,44 +123,157 @@ export async function startExpenseFlow(
     };
     expenseStateManager.setState(draft);
 
-    const trimmedInput = initialText?.trim();
-    if (trimmedInput) {
-      const parseResult = parseQuickAddExpense(trimmedInput);
-
-      if (parseResult.success) {
-        const splitsCalculated = calculateEqualSplit(parseResult.totalAmount, defaultParticipantIds);
-        draft.splits = splitsCalculated.map((s) => {
-          const m = activeMembers.find((mem) => mem.userId === s.userId);
-          return {
-            userId: s.userId,
-            name: m?.displayName || (s.userId === user.id ? displayName : 'Member'),
-            amount: s.amount,
-          };
-        });
-        draft.description = parseResult.description;
-        draft.totalAmount = parseResult.totalAmount;
-        draft.step = 'AWAITING_CONFIRMATION';
-        expenseStateManager.setState(draft);
-
-        await showConfirmation(ctx, draft);
-        return;
-      }
-
-      await ctx.reply(getQuickAddErrorMessage(parseResult.errorType), {
-        parse_mode: 'Markdown',
-        reply_markup: buildQuickAddKeyboard(),
-      });
-      return;
-    }
-
     await ctx.reply(QUICK_ADD_PROMPT, {
       parse_mode: 'Markdown',
       reply_markup: buildQuickAddKeyboard(),
     });
   } catch (error) {
-    logger.error('Failed to start expense flow:', error);
+    logger.error('Failed to start quick add:', error);
     await ctx.reply('❌ An error occurred while starting the expense flow. Please try again.');
   }
+}
+
+/**
+ * Creates an expense draft directly from pre-parsed description and amount.
+ * Moves directly to AWAITING_CONFIRMATION and displays the confirmation preview.
+ */
+export async function startExpenseFromParsedInput(
+  ctx: Context,
+  services: BotServices,
+  parsed: { description: string; amountMinorUnits?: number; totalAmount?: number }
+): Promise<ExpenseDraft | null> {
+  const isGroup = ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup';
+
+  if (!isGroup || !ctx.chat || !ctx.from) {
+    await ctx.reply('⚠️ Expenses can only be added inside a group.');
+    return null;
+  }
+
+  const amountPaise = parsed.amountMinorUnits ?? parsed.totalAmount ?? 0;
+
+  try {
+    const user = await services.userService.registerUser(ctx.from);
+    const group = await services.groupService.registerGroup({
+      id: ctx.chat.id,
+      title: ctx.chat.title ?? null,
+    });
+
+    const displayName =
+      [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(' ') || ctx.from.first_name;
+    await services.groupService.registerMember(group.id, user.id, displayName);
+
+    const activeMembers = await services.groupService.getActiveMembers(group.id);
+    const memberIds = activeMembers.map((m) => m.userId);
+    const defaultParticipantIds = memberIds.length > 0 ? memberIds : [user.id];
+
+    const splitsCalculated = calculateEqualSplit(amountPaise, defaultParticipantIds);
+    const splits = splitsCalculated.map((s) => {
+      const m = activeMembers.find((mem) => mem.userId === s.userId);
+      return {
+        userId: s.userId,
+        name: m?.displayName || (s.userId === user.id ? displayName : 'Member'),
+        amount: s.amount,
+      };
+    });
+
+    const draft: ExpenseDraft = {
+      chatId: ctx.chat.id,
+      userId: ctx.from.id,
+      groupId: group.id,
+      creatorUserId: user.id,
+      step: 'AWAITING_CONFIRMATION',
+      payerUserId: user.id,
+      payerName: displayName,
+      participantUserIds: defaultParticipantIds,
+      splitType: 'equal',
+      splits,
+      description: parsed.description,
+      totalAmount: amountPaise,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    expenseStateManager.setState(draft);
+    await showConfirmation(ctx, draft);
+    return draft;
+  } catch (error) {
+    logger.error('Failed to start expense from parsed input:', error);
+    await ctx.reply('❌ An error occurred while creating the expense preview. Please try again.');
+    return null;
+  }
+}
+
+/**
+ * Handles the /add command.
+ * If arguments are present, parses them directly. If valid, creates draft and shows confirmation.
+ * If arguments are missing, starts quick add mode.
+ */
+export async function handleAddCommand(
+  ctx: Context,
+  services: BotServices
+): Promise<void> {
+  if (ctx.from?.id) {
+    const rateCheck = checkUserRateLimit(ctx.from.id, 'MUTATION');
+    if (!rateCheck.allowed) {
+      await ctx.reply(RATE_LIMIT_EXCEEDED_MESSAGE, { parse_mode: 'Markdown' });
+      return;
+    }
+  }
+
+  const isGroup = ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup';
+  if (!isGroup || !ctx.chat || !ctx.from) {
+    await ctx.reply('⚠️ Expenses can only be added inside a group.');
+    return;
+  }
+
+  const args = extractAddCommandArgs(ctx);
+
+  if (args.length > 0) {
+    const parseResult = parseExpenseInput(args);
+    if (!parseResult.success) {
+      // Actionable error for command input. Do NOT create draft or set state.
+      await ctx.reply(getCmdAddErrorMessage(parseResult.errorType), {
+        parse_mode: 'Markdown',
+      });
+      return;
+    }
+
+    await startExpenseFromParsedInput(ctx, services, parseResult);
+    return;
+  }
+
+  await startQuickAdd(ctx, services);
+}
+
+/**
+ * Backward-compatible entry point that delegates to handleAddCommand or startQuickAdd.
+ */
+export async function startExpenseFlow(
+  ctx: Context,
+  services: BotServices,
+  initialText?: string
+): Promise<void> {
+  const isGroup = ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup';
+  if (!isGroup || !ctx.chat || !ctx.from) {
+    await ctx.reply('⚠️ Expenses can only be added inside a group.');
+    return;
+  }
+
+  const trimmed = initialText?.trim();
+  if (trimmed) {
+    const parseResult = parseExpenseInput(trimmed);
+    if (!parseResult.success) {
+      await ctx.reply(getCmdAddErrorMessage(parseResult.errorType), {
+        parse_mode: 'Markdown',
+      });
+      return;
+    }
+
+    await startExpenseFromParsedInput(ctx, services, parseResult);
+    return;
+  }
+
+  await startQuickAdd(ctx, services);
 }
 
 /**
@@ -171,7 +308,7 @@ export async function handleExpenseTextInput(
   try {
     switch (draft.step) {
       case 'AWAITING_QUICK_ADD': {
-        const parseResult = parseQuickAddExpense(text);
+        const parseResult = parseExpenseInput(text);
 
         if (!parseResult.success) {
           await ctx.reply(getQuickAddErrorMessage(parseResult.errorType), {

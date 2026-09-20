@@ -1,10 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { startExpenseFlow, handleExpenseTextInput } from './expense-flow';
+import {
+  startExpenseFlow,
+  startQuickAdd,
+  startExpenseFromParsedInput,
+  handleAddCommand,
+  handleExpenseTextInput,
+  extractAddCommandArgs,
+} from './expense-flow';
 import { expenseStateManager, ExpenseDraft } from './expense-state';
 import { BotServices } from '../services';
-import { Context } from 'grammy';
+import { Context, CommandContext } from 'grammy';
 import {
   QUICK_ADD_PROMPT,
+  CMD_ADD_MISSING_AMOUNT_MESSAGE,
+  CMD_ADD_INVALID_AMOUNT_MESSAGE,
   QUICK_ADD_MISSING_AMOUNT_MESSAGE,
   QUICK_ADD_INVALID_AMOUNT_MESSAGE,
   QUICK_ADD_MISSING_DESCRIPTION_MESSAGE,
@@ -217,9 +226,23 @@ describe('Expense Flow - Quick Add & Replacement UX', () => {
     );
   });
 
-  it('shows malformed error when user sends unparseable input', async () => {
+  it('shows invalid amount error when user sends non-numeric amount like "Dinner 12a"', async () => {
     seedDraft();
     const { ctx, replyMock } = createTextContext('Dinner 12a');
+
+    const handled = await handleExpenseTextInput(ctx, mockServices);
+
+    expect(handled).toBe(true);
+    expect(replyMock).toHaveBeenCalledWith(
+      QUICK_ADD_INVALID_AMOUNT_MESSAGE,
+      expect.objectContaining({ reply_markup: expect.anything() })
+    );
+  });
+
+  it('shows malformed error when description exceeds 100 characters', async () => {
+    seedDraft();
+    const tooLong = 'A'.repeat(101) + ' 500';
+    const { ctx, replyMock } = createTextContext(tooLong);
 
     const handled = await handleExpenseTextInput(ctx, mockServices);
 
@@ -322,5 +345,210 @@ describe('Expense Flow - Quick Add & Replacement UX', () => {
 
     expect(expenseStateManager.getState(-1001, 10)?.groupId).toBe('g-1');
     expect(expenseStateManager.getState(-1002, 20)?.groupId).toBe('g-2');
+  });
+
+  describe('Production Bug Regression Suite: /add arguments handling', () => {
+    function createCommandContext(text: string, matchPayload?: string) {
+      const replyMock = vi.fn().mockResolvedValue(undefined);
+      const ctx = {
+        chat: { id: chatId, type: 'group', title: 'Flatmates' },
+        from: { id: userId, first_name: 'Bob' },
+        message: { text },
+        match: matchPayload !== undefined ? matchPayload : text.replace(/^\/add(?:@\w+)?\s*/i, ''),
+        reply: replyMock,
+      } as unknown as CommandContext<Context>;
+      return { ctx, replyMock };
+    }
+
+    it('1. /add dinner 1200 parses immediately, shows confirmation, and sets AWAITING_CONFIRMATION', async () => {
+      const { ctx, replyMock } = createCommandContext('/add dinner 1200', 'dinner 1200');
+
+      await handleAddCommand(ctx, mockServices);
+
+      expect(replyMock).toHaveBeenCalledTimes(1);
+      const replyMessage = replyMock.mock.calls[0][0];
+      expect(replyMessage).toContain('dinner');
+      expect(replyMessage).toContain('1,200');
+      expect(replyMessage).not.toContain('What was this expense for?');
+
+      const draft = expenseStateManager.getState(chatId, userId);
+      expect(draft).not.toBeNull();
+      expect(draft?.step).toBe('AWAITING_CONFIRMATION');
+      expect(draft?.description).toBe('dinner');
+      expect(draft?.totalAmount).toBe(120000);
+      expect(draft?.splitType).toBe('equal');
+      expect(draft?.payerUserId).toBe('db-u1');
+      expect(draft?.participantUserIds).toEqual(['db-u1', 'db-u2']);
+    });
+
+    it('2. /add pent 800 parses immediately and shows confirmation', async () => {
+      const { ctx, replyMock } = createCommandContext('/add pent 800', 'pent 800');
+
+      await handleAddCommand(ctx, mockServices);
+
+      expect(replyMock).toHaveBeenCalledTimes(1);
+      const replyMessage = replyMock.mock.calls[0][0];
+      expect(replyMessage).toContain('pent');
+      expect(replyMessage).toContain('800');
+
+      const draft = expenseStateManager.getState(chatId, userId);
+      expect(draft?.step).toBe('AWAITING_CONFIRMATION');
+      expect(draft?.description).toBe('pent');
+      expect(draft?.totalAmount).toBe(80000);
+    });
+
+    it('3. /add without arguments prompts for quick-add and waits for text input', async () => {
+      const { ctx, replyMock } = createCommandContext('/add', '');
+
+      await handleAddCommand(ctx, mockServices);
+
+      expect(replyMock).toHaveBeenCalledWith(
+        QUICK_ADD_PROMPT,
+        expect.objectContaining({ reply_markup: expect.anything() })
+      );
+
+      const draft = expenseStateManager.getState(chatId, userId);
+      expect(draft).not.toBeNull();
+      expect(draft?.step).toBe('AWAITING_QUICK_ADD');
+    });
+
+    it('4. /add dinner shows actionable missing amount error and does not create draft', async () => {
+      const { ctx, replyMock } = createCommandContext('/add dinner', 'dinner');
+
+      await handleAddCommand(ctx, mockServices);
+
+      expect(replyMock).toHaveBeenCalledWith(
+        CMD_ADD_MISSING_AMOUNT_MESSAGE,
+        expect.anything()
+      );
+
+      // Must NOT silently create draft or start description state
+      expect(expenseStateManager.getState(chatId, userId)).toBeNull();
+    });
+
+    it('5. /add dinner abc shows actionable invalid amount error and does not create draft', async () => {
+      const { ctx, replyMock } = createCommandContext('/add dinner abc', 'dinner abc');
+
+      await handleAddCommand(ctx, mockServices);
+
+      expect(replyMock).toHaveBeenCalledWith(
+        CMD_ADD_INVALID_AMOUNT_MESSAGE,
+        expect.anything()
+      );
+
+      expect(expenseStateManager.getState(chatId, userId)).toBeNull();
+    });
+
+    it('6. Add Expense button + "Dinner 1200" shows confirmation', async () => {
+      const buttonReplyMock = vi.fn().mockResolvedValue(undefined);
+      const buttonCtx = {
+        chat: { id: chatId, type: 'group', title: 'Flatmates' },
+        from: { id: userId, first_name: 'Bob' },
+        reply: buttonReplyMock,
+      } as unknown as Context;
+
+      await startQuickAdd(buttonCtx, mockServices);
+
+      expect(expenseStateManager.getState(chatId, userId)?.step).toBe('AWAITING_QUICK_ADD');
+
+      const { ctx: textCtx, replyMock: textReplyMock } = createTextContext('Dinner 1200');
+      const handled = await handleExpenseTextInput(textCtx, mockServices);
+
+      expect(handled).toBe(true);
+      expect(textReplyMock).toHaveBeenCalledWith(
+        expect.stringContaining('Dinner'),
+        expect.anything()
+      );
+      expect(expenseStateManager.getState(chatId, userId)?.step).toBe('AWAITING_CONFIRMATION');
+    });
+
+    it('7. Add Expense button + "Dinner" shows missing amount error and does not repeat "What was this expense for?"', async () => {
+      const buttonReplyMock = vi.fn().mockResolvedValue(undefined);
+      const buttonCtx = {
+        chat: { id: chatId, type: 'group', title: 'Flatmates' },
+        from: { id: userId, first_name: 'Bob' },
+        reply: buttonReplyMock,
+      } as unknown as Context;
+
+      await startQuickAdd(buttonCtx, mockServices);
+
+      const { ctx: textCtx, replyMock: textReplyMock } = createTextContext('Dinner');
+      const handled = await handleExpenseTextInput(textCtx, mockServices);
+
+      expect(handled).toBe(true);
+      expect(textReplyMock).toHaveBeenCalledWith(
+        QUICK_ADD_MISSING_AMOUNT_MESSAGE,
+        expect.anything()
+      );
+      const replyText = textReplyMock.mock.calls[0][0];
+      expect(replyText).not.toContain('What was this expense for?');
+      expect(expenseStateManager.getState(chatId, userId)?.step).toBe('AWAITING_QUICK_ADD');
+    });
+
+    it('8. /add dinner 1200 must NEVER produce "What was this expense for?"', async () => {
+      const { ctx, replyMock } = createCommandContext('/add dinner 1200', 'dinner 1200');
+
+      await handleAddCommand(ctx, mockServices);
+
+      const calls = replyMock.mock.calls;
+      for (const call of calls) {
+        expect(call[0]).not.toContain('What was this expense for?');
+      }
+    });
+
+    it('9. /add dinner 1200 does not create duplicate draft/session when run repeatedly', async () => {
+      const { ctx: ctx1 } = createCommandContext('/add lunch 500', 'lunch 500');
+      await handleAddCommand(ctx1, mockServices);
+
+      const { ctx: ctx2 } = createCommandContext('/add dinner 1200', 'dinner 1200');
+      await handleAddCommand(ctx2, mockServices);
+
+      const draft = expenseStateManager.getState(chatId, userId);
+      expect(draft?.description).toBe('dinner');
+      expect(draft?.totalAmount).toBe(120000);
+    });
+
+    it('10. Cancel works after /add or during quick add', async () => {
+      const { ctx: addCtx } = createCommandContext('/add', '');
+      await handleAddCommand(addCtx, mockServices);
+      expect(expenseStateManager.getState(chatId, userId)).not.toBeNull();
+
+      const { ctx: cancelCtx } = createTextContext('/cancel');
+      const handled = await handleExpenseTextInput(cancelCtx, mockServices);
+
+      expect(handled).toBe(false); // lets cancel command proceed
+      expect(expenseStateManager.getState(chatId, userId)).toBeNull();
+    });
+
+    it('11. Multiple users and groups remain strictly isolated', async () => {
+      const { ctx: ctxUser1Group1 } = createCommandContext('/add pizza 600', 'pizza 600');
+      await handleAddCommand(ctxUser1Group1, mockServices);
+
+      const ctxUser2Group1 = {
+        chat: { id: chatId, type: 'group' },
+        from: { id: 789, first_name: 'Alice' },
+        message: { text: '/add sushi 1500' },
+        match: 'sushi 1500',
+        reply: vi.fn(),
+      } as unknown as CommandContext<Context>;
+      await handleAddCommand(ctxUser2Group1, mockServices);
+
+      const draft1 = expenseStateManager.getState(chatId, userId);
+      const draft2 = expenseStateManager.getState(chatId, 789);
+
+      expect(draft1?.description).toBe('pizza');
+      expect(draft2?.description).toBe('sushi');
+    });
+
+    it('12. extractAddCommandArgs extracts from match or message text correctly', () => {
+      const ctxWithMatch = { match: 'dinner 1200', message: { text: '/add dinner 1200' } } as unknown as Context;
+      expect(extractAddCommandArgs(ctxWithMatch)).toBe('dinner 1200');
+
+      const ctxWithBotMention = { match: '', message: { text: '/add@MyBuddyBot pent 800' } } as unknown as Context;
+      expect(extractAddCommandArgs(ctxWithBotMention)).toBe('pent 800');
+
+      const ctxNoArgs = { match: '', message: { text: '/add' } } as unknown as Context;
+      expect(extractAddCommandArgs(ctxNoArgs)).toBe('');
+    });
   });
 });

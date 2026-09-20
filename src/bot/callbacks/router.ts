@@ -19,7 +19,7 @@ import {
 import { handleExpenseCallback } from './expense-callbacks';
 import { handleExpenseManagementCallback } from './expense-management-callbacks';
 import { handlePaymentCallback } from './payment-callbacks';
-import { startExpenseFlow } from '../../modules/expenses/expense-flow';
+import { startQuickAdd } from '../../modules/expenses/expense-flow';
 import { logger } from '../../shared/logger';
 import { formatPaise } from '../../shared/currency';
 import { escapeMarkdown } from '../../shared/markdown';
@@ -53,7 +53,7 @@ export function createCallbackRouter(services: BotServices) {
       // 2. Route expense creation interactive callbacks
       if (data === 'action:add_expense') {
         await ctx.answerCallbackQuery();
-        await startExpenseFlow(ctx, services);
+        await startQuickAdd(ctx, services);
         return;
       }
 

@@ -4,25 +4,33 @@ import { escapeMarkdown } from '../../shared/markdown';
 
 export const QUICK_ADD_PROMPT =
   `➕ *Add Expense*\n\n` +
-  `*Fast mode:*\n` +
+  `Send:\n` +
   `\`Dinner 1200\`\n\n` +
   `*Examples:*\n` +
-  `\`Cab 450\`\n` +
-  `\`Dinner 1200\`\n` +
+  `\`Dinner 450\`\n` +
+  `\`Cab 300\`\n` +
   `\`Hotel 2500\``;
+
+export const CMD_ADD_MISSING_AMOUNT_MESSAGE =
+  `❌ *I need the amount too.*\n\n` +
+  `Try:\n` +
+  `\`/add dinner 1200\`\n\n` +
+  `or:\n` +
+  `\`Dinner 1200\``;
+
+export const CMD_ADD_INVALID_AMOUNT_MESSAGE =
+  `❌ *Invalid amount.*\n\n` +
+  `Example:\n` +
+  `\`/add dinner 1200\``;
 
 export const QUICK_ADD_MISSING_AMOUNT_MESSAGE =
   `❌ *I need the amount too.*\n\n` +
   `Try:\n` +
-  `\`Dinner 1200\`\n\n` +
-  `*Examples:*\n` +
-  `\`Cab 450\`\n` +
-  `\`Dinner 1200\`\n` +
-  `\`Movie 800\``;
+  `\`Dinner 1200\``;
 
 export const QUICK_ADD_INVALID_AMOUNT_MESSAGE =
   `❌ *Invalid amount.*\n\n` +
-  `Please enter a positive amount, for example:\n` +
+  `Example:\n` +
   `\`Dinner 1200\``;
 
 export const QUICK_ADD_MISSING_DESCRIPTION_MESSAGE =

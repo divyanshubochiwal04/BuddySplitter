@@ -60,22 +60,43 @@ export function validateParticipantSelection(participantUserIds: string[]): stri
   return Array.from(new Set(participantUserIds));
 }
 
-export type QuickAddErrorType =
+export interface ParsedExpense {
+  description: string;
+  amountMinorUnits: number;
+  totalAmount: number;
+}
+
+export type ExpenseParseErrorType =
   | 'MISSING_AMOUNT'
   | 'INVALID_AMOUNT'
   | 'MISSING_DESCRIPTION'
   | 'MALFORMED';
 
-export type QuickAddParseResult =
-  | { success: true; description: string; totalAmount: number }
-  | { success: false; errorType: QuickAddErrorType; message: string };
+export type QuickAddErrorType = ExpenseParseErrorType;
+
+export type ExpenseParseResult =
+  | {
+      success: true;
+      data: ParsedExpense;
+      description: string;
+      totalAmount: number;
+      amountMinorUnits: number;
+    }
+  | {
+      success: false;
+      errorType: ExpenseParseErrorType;
+      message: string;
+    };
+
+export type QuickAddParseResult = ExpenseParseResult;
 
 /**
- * Parses a Quick Add input string into description and total amount in minor units (paise).
+ * Canonical single parser for expense inputs.
+ * Reusable across "/add dinner 1200" and plain text "Dinner 1200".
  * Format: `<description> <amount>`
  * e.g. "Dinner 1200", "Cab 450", "Hotel 2500"
  */
-export function parseQuickAddExpense(input: string): QuickAddParseResult {
+export function parseExpenseInput(input: string): ExpenseParseResult {
   if (typeof input !== 'string') {
     return {
       success: false,
@@ -84,8 +105,13 @@ export function parseQuickAddExpense(input: string): QuickAddParseResult {
     };
   }
 
-  const trimmed = input.trim();
-  if (!trimmed) {
+  let text = input.trim();
+  // Strip leading /add command if passed
+  if (text.startsWith('/add')) {
+    text = text.replace(/^\/add(?:@\w+)?\s*/i, '').trim();
+  }
+
+  if (!text) {
     return {
       success: false,
       errorType: 'MALFORMED',
@@ -95,7 +121,7 @@ export function parseQuickAddExpense(input: string): QuickAddParseResult {
 
   // Check if entire input is just an amount without description (e.g. "1200", "₹1200", "Rs 500", "1200.50", "-50")
   const amountOnlyPattern = /^([₹]|rs\.?|inr)?\s*-?\d+(\.\d+)?$/i;
-  if (amountOnlyPattern.test(trimmed)) {
+  if (amountOnlyPattern.test(text)) {
     return {
       success: false,
       errorType: 'MISSING_DESCRIPTION',
@@ -103,8 +129,9 @@ export function parseQuickAddExpense(input: string): QuickAddParseResult {
     };
   }
 
-  // If there are no digits at all in the text (e.g. "Dinner", "Coffee with friends"):
-  if (!/\d/.test(trimmed)) {
+  // If there are no spaces in text (single token, e.g. "dinner", "pent", "cab")
+  const lastSpaceIndex = text.lastIndexOf(' ');
+  if (lastSpaceIndex === -1) {
     return {
       success: false,
       errorType: 'MISSING_AMOUNT',
@@ -112,72 +139,74 @@ export function parseQuickAddExpense(input: string): QuickAddParseResult {
     };
   }
 
-  // Pattern to extract description and trailing amount
-  const pattern = /^(.*?)\s+([₹]|rs\.?|inr)?\s*(-?\d+(?:\.\d+)?)$/i;
-  const match = trimmed.match(pattern);
+  let descCandidate = text.substring(0, lastSpaceIndex).trim();
+  const amountCandidate = text.substring(lastSpaceIndex + 1).trim();
 
-  if (match) {
-    let descPart = match[1].trim();
-    // Also remove trailing currency symbols from descPart if any
-    descPart = descPart.replace(/\s*(?:₹|rs\.?|inr)$/i, '').trim();
+  // Strip trailing currency designators from description candidate if any (e.g. "Dinner ₹" -> "Dinner")
+  descCandidate = descCandidate.replace(/\s*(?:₹|rs\.?|inr)$/i, '').trim();
 
-    if (!descPart) {
-      return {
-        success: false,
-        errorType: 'MISSING_DESCRIPTION',
-        message: 'Add a description.',
-      };
-    }
-
-    if (descPart.length > 100) {
-      return {
-        success: false,
-        errorType: 'MALFORMED',
-        message: 'Description must be 100 characters or fewer.',
-      };
-    }
-
-    const rawNum = match[3];
-    const numPart = parseFloat(rawNum);
-
-    if (isNaN(numPart) || numPart <= 0) {
-      return {
-        success: false,
-        errorType: 'INVALID_AMOUNT',
-        message: 'Invalid amount.',
-      };
-    }
-
-    // Check decimal places: up to 2
-    const parts = rawNum.split('.');
-    if (parts.length > 1 && parts[1].length > 2) {
-      return {
-        success: false,
-        errorType: 'INVALID_AMOUNT',
-        message: 'Invalid amount.',
-      };
-    }
-
-    const paise = toPaise(numPart);
-    if (paise <= 0) {
-      return {
-        success: false,
-        errorType: 'INVALID_AMOUNT',
-        message: 'Invalid amount.',
-      };
-    }
-
+  if (!descCandidate) {
     return {
-      success: true,
-      description: descPart,
-      totalAmount: paise,
+      success: false,
+      errorType: 'MISSING_DESCRIPTION',
+      message: 'Add a description.',
+    };
+  }
+
+  if (descCandidate.length > 100) {
+    return {
+      success: false,
+      errorType: 'MALFORMED',
+      message: 'Description must be 100 characters or fewer.',
+    };
+  }
+
+  // Validate amountCandidate: must be valid positive decimal with up to 2 decimal places
+  const cleanedAmount = amountCandidate
+    .replace(/[₹\s,]/g, '')
+    .replace(/^(rs|inr)\.?/i, '')
+    .trim();
+
+  const numberPattern = /^\d+(\.\d{1,2})?$/;
+  if (!numberPattern.test(cleanedAmount)) {
+    return {
+      success: false,
+      errorType: 'INVALID_AMOUNT',
+      message: 'Invalid amount.',
+    };
+  }
+
+  const numPart = parseFloat(cleanedAmount);
+  if (isNaN(numPart) || numPart <= 0) {
+    return {
+      success: false,
+      errorType: 'INVALID_AMOUNT',
+      message: 'Invalid amount.',
+    };
+  }
+
+  const paise = toPaise(numPart);
+  if (paise <= 0) {
+    return {
+      success: false,
+      errorType: 'INVALID_AMOUNT',
+      message: 'Invalid amount.',
     };
   }
 
   return {
-    success: false,
-    errorType: 'MALFORMED',
-    message: "I couldn't understand that expense.",
+    success: true,
+    data: {
+      description: descCandidate,
+      amountMinorUnits: paise,
+      totalAmount: paise,
+    },
+    description: descCandidate,
+    totalAmount: paise,
+    amountMinorUnits: paise,
   };
 }
+
+export const parseQuickAddExpense = parseExpenseInput;
+
 

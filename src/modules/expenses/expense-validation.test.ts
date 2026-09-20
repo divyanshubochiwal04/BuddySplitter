@@ -4,6 +4,7 @@ import {
   parseAndValidateAmount,
   validateParticipantSelection,
   parseQuickAddExpense,
+  parseExpenseInput,
 } from './expense-validation';
 import { ValidationError } from '../../shared/errors';
 
@@ -153,13 +154,28 @@ describe('Expense Validation', () => {
       }
     });
 
-    it('detects malformed input', () => {
+    it('detects invalid amount for non-numeric amounts', () => {
       const res = parseQuickAddExpense('Dinner 12a');
       expect(res.success).toBe(false);
       if (!res.success) {
-        expect(res.errorType).toBe('MALFORMED');
+        expect(res.errorType).toBe('INVALID_AMOUNT');
       }
 
+      const resAbc = parseExpenseInput('/add dinner abc');
+      expect(resAbc.success).toBe(false);
+      if (!resAbc.success) {
+        expect(resAbc.errorType).toBe('INVALID_AMOUNT');
+      }
+
+      const resPent = parseExpenseInput('/add pent 800');
+      expect(resPent.success).toBe(true);
+      if (resPent.success) {
+        expect(resPent.description).toBe('pent');
+        expect(resPent.totalAmount).toBe(80000);
+      }
+    });
+
+    it('detects malformed input for empty text', () => {
       const resEmpty = parseQuickAddExpense('');
       expect(resEmpty.success).toBe(false);
       if (!resEmpty.success) {
