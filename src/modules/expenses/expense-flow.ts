@@ -71,9 +71,9 @@ export function extractAddCommandArgs(ctx: Context): string {
 }
 
 export async function showConfirmation(ctx: Context, draft: ExpenseDraft): Promise<void> {
-  await ctx.reply(formatExpenseConfirmation(draft), {
+  await ctx.reply(formatExpenseConfirmation(draft, draft.cachedMembers), {
     parse_mode: 'Markdown',
-    reply_markup: buildExpenseConfirmationKeyboard(),
+    reply_markup: buildExpenseConfirmationKeyboard(draft, draft.cachedMembers),
   });
 }
 
@@ -107,6 +107,11 @@ export async function startQuickAdd(
     const memberIds = activeMembers.map((m) => m.userId);
     const defaultParticipantIds = memberIds.length > 0 ? memberIds : [user.id];
 
+    const cachedMembers = activeMembers.map((m) => ({
+      userId: m.userId,
+      name: m.displayName || (m.userId === user.id ? displayName : 'Member'),
+    }));
+
     const draft: ExpenseDraft = {
       chatId: ctx.chat.id,
       userId: ctx.from.id,
@@ -118,6 +123,7 @@ export async function startQuickAdd(
       participantUserIds: defaultParticipantIds,
       splitType: 'equal',
       splits: [],
+      cachedMembers,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
@@ -176,6 +182,11 @@ export async function startExpenseFromParsedInput(
       };
     });
 
+    const cachedMembers = activeMembers.map((m) => ({
+      userId: m.userId,
+      name: m.displayName || (m.userId === user.id ? displayName : 'Member'),
+    }));
+
     const draft: ExpenseDraft = {
       chatId: ctx.chat.id,
       userId: ctx.from.id,
@@ -189,6 +200,7 @@ export async function startExpenseFromParsedInput(
       splits,
       description: parsed.description,
       totalAmount: amountPaise,
+      cachedMembers,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
@@ -329,11 +341,17 @@ export async function handleExpenseTextInput(
           };
         });
 
+        const cachedMembers = activeMembers.map((m) => ({
+          userId: m.userId,
+          name: m.displayName || (m.userId === draft.creatorUserId ? draft.payerName || 'Member' : 'Member'),
+        }));
+
         const updatedDraft = expenseStateManager.updateState(ctx.chat.id, ctx.from.id, {
           description: parseResult.description,
           totalAmount: parseResult.totalAmount,
           splitType: 'equal',
           splits,
+          cachedMembers,
           step: 'AWAITING_CONFIRMATION',
         });
 

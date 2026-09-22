@@ -87,7 +87,10 @@ export const EXPENSE_SHARES_PROMPT =
   `🔢 *Give each person their number of shares.*\n\n` +
   `_Tap ➖ or ➕ to adjust shares for each participant:_`;
 
-export function formatExpenseConfirmation(draft: ExpenseDraft): string {
+export function formatExpenseConfirmation(
+  draft: ExpenseDraft,
+  members?: Array<{ userId: string; name: string }>
+): string {
   const typeLabel =
     draft.splitType === 'equal'
       ? 'Equal'
@@ -105,6 +108,13 @@ export function formatExpenseConfirmation(draft: ExpenseDraft): string {
   const count = draft.participantUserIds.length;
   const participantCountStr = `${count} ${count === 1 ? 'member' : 'members'}`;
 
+  // Per-person amount if equal split
+  let perPersonStr = '';
+  if (draft.splitType === 'equal' && count > 0 && draft.totalAmount) {
+    const eachPaise = Math.round(draft.totalAmount / count);
+    perPersonStr = ` (${formatPaise(eachPaise)} each)`;
+  }
+
   let splitDetails = '';
   if (draft.splitType && draft.splitType !== 'equal' && draft.splits.length > 0) {
     const lines = draft.splits
@@ -119,13 +129,22 @@ export function formatExpenseConfirmation(draft: ExpenseDraft): string {
       })
       .join('\n');
     splitDetails = `\n\n*Split breakdown:*\n${lines}`;
+  } else if (members && members.length > 0) {
+    const partSet = new Set(draft.participantUserIds);
+    const memberLines = members.map((m) => {
+      const isIncluded = partSet.has(m.userId);
+      const mark = isIncluded ? '☑️' : '◻️';
+      const suffix = isIncluded ? '' : ' _(excluded)_';
+      return `${mark} ${escapeMarkdown(m.name)}${suffix}`;
+    });
+    splitDetails = `\n\n*Sharing:* ${memberLines.join('  •  ')}`;
   }
 
   return (
     `🍽️ *${escapeMarkdown(draft.description || 'Expense')}*\n` +
     `💰 *${formatQuickRupees(draft.totalAmount || 0)}*\n` +
     `👤 *Paid by:* ${payerDisplay}\n` +
-    `👥 *Split:* ${typeLabel}\n` +
+    `👥 *Split:* ${typeLabel}${perPersonStr}\n` +
     `👥 *Participants:* ${participantCountStr}` +
     splitDetails
   );

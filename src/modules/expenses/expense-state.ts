@@ -41,6 +41,7 @@ export interface ExpenseDraft {
   sharesMap?: Record<string, number>; // Mapping participant userId -> number of shares
   editingExpenseId?: string; // Database expense UUID if in edit mode
   returnPage?: number; // Page number to return to upon completion/cancellation
+  cachedMembers?: Array<{ userId: string; name: string }>; // Pre-loaded group members for fast single-form toggling
   createdAt: number;
   updatedAt: number;
 }

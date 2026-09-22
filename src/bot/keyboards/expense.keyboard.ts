@@ -1,4 +1,6 @@
 import { InlineKeyboard } from 'grammy';
+import { formatPaise } from '../../shared/currency';
+import { ExpenseDraft } from '../../modules/expenses/expense-state';
 
 export interface MemberOption {
   userId: string;
@@ -9,12 +11,65 @@ export function buildQuickAddKeyboard(): InlineKeyboard {
   return new InlineKeyboard().text('❌ Cancel', 'exp:cancel');
 }
 
-export function buildExpenseConfirmationKeyboard(): InlineKeyboard {
-  return new InlineKeyboard()
-    .text('✅ Save Expense', 'exp:confirm')
-    .text('✏️ Change', 'exp:change')
-    .row()
+export function buildExpenseConfirmationKeyboard(
+  draft?: ExpenseDraft,
+  members?: MemberOption[]
+): InlineKeyboard {
+  if (!draft || !members || members.length === 0) {
+    return new InlineKeyboard()
+      .text('✅ Save Expense', 'exp:confirm')
+      .text('✏️ Change', 'exp:change')
+      .row()
+      .text('❌ Cancel', 'exp:cancel');
+  }
+
+  const keyboard = new InlineKeyboard();
+
+  // Row 1: Payer quick-switch & Split method
+  const payerName = draft.payerName?.replace(/\s*\(You\)$/, '') || 'Payer';
+  const splitLabel =
+    draft.splitType === 'equal'
+      ? 'Equal'
+      : draft.splitType === 'shares'
+      ? 'Shares'
+      : draft.splitType === 'percentage'
+      ? 'Percent'
+      : 'Custom';
+
+  keyboard
+    .text(`👤 Paid by: ${payerName} ▾`, 'exp:form_cycle_payer')
+    .text(`⚖️ ${splitLabel} ▾`, 'exp:ch_split')
+    .row();
+
+  // Participant toggle checkboxes directly on form
+  const participantSet = new Set(draft.participantUserIds);
+  const chunkSize = members.length <= 4 ? 2 : 3;
+
+  for (let i = 0; i < members.length; i += chunkSize) {
+    const chunk = members.slice(i, i + chunkSize);
+    for (const member of chunk) {
+      const isSelected = participantSet.has(member.userId);
+      const prefix = isSelected ? '☑️' : '◻️';
+      keyboard.text(`${prefix} ${member.name}`, `exp:form_toggle_part:${member.userId}`);
+    }
+    keyboard.row();
+  }
+
+  // Quick Action row
+  if (members.length > 2) {
+    keyboard.text('👥 Everyone', 'exp:form_part_all');
+  }
+  keyboard.text('✏️ Text', 'exp:ch_desc');
+  keyboard.text('💰 Amount', 'exp:ch_amt');
+  keyboard.row();
+
+  // Bottom action row
+  const amountStr = draft.totalAmount ? ` (${formatPaise(draft.totalAmount)})` : '';
+  keyboard
+    .text(`✅ Save Expense${amountStr}`, 'exp:confirm')
     .text('❌ Cancel', 'exp:cancel');
+
+  return keyboard;
 }
 
 export function buildChangeMenuKeyboard(): InlineKeyboard {

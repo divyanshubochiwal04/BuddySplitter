@@ -143,6 +143,124 @@ export async function handleExpenseCallback(
     return true;
   }
 
+  // 4.1 In-place Single Form Handlers (Zero-navigation toggles)
+  if (data === 'exp:form_cycle_payer') {
+    const members = draft.cachedMembers || (await getGroupMemberOptions());
+    if (!members || members.length <= 1) {
+      await ctx.answerCallbackQuery({
+        text: 'ℹ️ You are the only active member in this group.',
+      });
+      return true;
+    }
+
+    const currentIdx = members.findIndex((m) => m.userId === draft.payerUserId);
+    const nextIdx = (currentIdx + 1) % members.length;
+    const nextPayer = members[nextIdx];
+
+    const updatedDraft = expenseStateManager.updateState(chatId, userId, {
+      payerUserId: nextPayer.userId,
+      payerName: nextPayer.name,
+      cachedMembers: members,
+    });
+
+    await ctx.answerCallbackQuery({ text: `Payer: ${nextPayer.name}` });
+
+    if (updatedDraft) {
+      const text = formatExpenseConfirmation(updatedDraft, members);
+      const keyboard = buildExpenseConfirmationKeyboard(updatedDraft, members);
+      try {
+        await ctx.editMessageText(text, { parse_mode: 'Markdown', reply_markup: keyboard });
+      } catch (err: any) {
+        if (!err?.message?.includes('message is not modified')) throw err;
+      }
+    }
+    return true;
+  }
+
+  if (data.startsWith('exp:form_toggle_part:')) {
+    const toggleUserId = data.slice('exp:form_toggle_part:'.length);
+    const currentSet = new Set(draft.participantUserIds);
+
+    if (currentSet.has(toggleUserId)) {
+      if (currentSet.size === 1) {
+        await ctx.answerCallbackQuery({
+          text: '⚠️ At least one person must share this expense.',
+          show_alert: true,
+        });
+        return true;
+      }
+      currentSet.delete(toggleUserId);
+    } else {
+      currentSet.add(toggleUserId);
+    }
+
+    const updatedIds = Array.from(currentSet);
+    const members = draft.cachedMembers || (await getGroupMemberOptions());
+
+    const splitsCalculated = calculateEqualSplit(draft.totalAmount || 0, updatedIds);
+    const fullSplits = splitsCalculated.map((s) => {
+      const m = members.find((mem) => mem.userId === s.userId);
+      return {
+        userId: s.userId,
+        name: m?.name || 'Member',
+        amount: s.amount,
+      };
+    });
+
+    const updatedDraft = expenseStateManager.updateState(chatId, userId, {
+      participantUserIds: updatedIds,
+      splits: fullSplits,
+      cachedMembers: members,
+    });
+
+    await ctx.answerCallbackQuery();
+
+    if (updatedDraft) {
+      const text = formatExpenseConfirmation(updatedDraft, members);
+      const keyboard = buildExpenseConfirmationKeyboard(updatedDraft, members);
+      try {
+        await ctx.editMessageText(text, { parse_mode: 'Markdown', reply_markup: keyboard });
+      } catch (err: any) {
+        if (!err?.message?.includes('message is not modified')) throw err;
+      }
+    }
+    return true;
+  }
+
+  if (data === 'exp:form_part_all') {
+    const members = draft.cachedMembers || (await getGroupMemberOptions());
+    const allIds = members.map((m) => m.userId);
+
+    const splitsCalculated = calculateEqualSplit(draft.totalAmount || 0, allIds);
+    const fullSplits = splitsCalculated.map((s) => {
+      const m = members.find((mem) => mem.userId === s.userId);
+      return {
+        userId: s.userId,
+        name: m?.name || 'Member',
+        amount: s.amount,
+      };
+    });
+
+    const updatedDraft = expenseStateManager.updateState(chatId, userId, {
+      participantUserIds: allIds,
+      splits: fullSplits,
+      cachedMembers: members,
+    });
+
+    await ctx.answerCallbackQuery({ text: 'Selected everyone' });
+
+    if (updatedDraft) {
+      const text = formatExpenseConfirmation(updatedDraft, members);
+      const keyboard = buildExpenseConfirmationKeyboard(updatedDraft, members);
+      try {
+        await ctx.editMessageText(text, { parse_mode: 'Markdown', reply_markup: keyboard });
+      } catch (err: any) {
+        if (!err?.message?.includes('message is not modified')) throw err;
+      }
+    }
+    return true;
+  }
+
   // 5. Change Menu Options
   if (data === 'exp:ch_desc') {
     expenseStateManager.updateState(chatId, userId, { step: 'AWAITING_NEW_DESCRIPTION' });
@@ -226,13 +344,15 @@ export async function handleExpenseCallback(
   }
 
   if (data === 'exp:back_confirm') {
+    const members = draft.cachedMembers || (await getGroupMemberOptions());
     const updatedDraft = expenseStateManager.updateState(chatId, userId, {
       step: 'AWAITING_CONFIRMATION',
+      cachedMembers: members,
     });
     await ctx.answerCallbackQuery();
     if (updatedDraft) {
-      const text = formatExpenseConfirmation(updatedDraft);
-      const keyboard = buildExpenseConfirmationKeyboard();
+      const text = formatExpenseConfirmation(updatedDraft, members);
+      const keyboard = buildExpenseConfirmationKeyboard(updatedDraft, members);
       try {
         await ctx.editMessageText(text, { parse_mode: 'Markdown', reply_markup: keyboard });
       } catch {
@@ -256,13 +376,14 @@ export async function handleExpenseCallback(
     const updatedDraft = expenseStateManager.updateState(chatId, userId, {
       payerUserId: payer.userId,
       payerName: payer.name,
+      cachedMembers: members,
       step: 'AWAITING_CONFIRMATION',
     });
 
     await ctx.answerCallbackQuery();
     if (updatedDraft) {
-      const text = formatExpenseConfirmation(updatedDraft);
-      const keyboard = buildExpenseConfirmationKeyboard();
+      const text = formatExpenseConfirmation(updatedDraft, members);
+      const keyboard = buildExpenseConfirmationKeyboard(updatedDraft, members);
       try {
         await ctx.editMessageText(text, { parse_mode: 'Markdown', reply_markup: keyboard });
       } catch {
@@ -365,13 +486,14 @@ export async function handleExpenseCallback(
     const updatedDraft = expenseStateManager.updateState(chatId, userId, {
       splits: fullSplits,
       splitType: 'equal',
+      cachedMembers: members,
       step: 'AWAITING_CONFIRMATION',
     });
 
     await ctx.answerCallbackQuery();
     if (updatedDraft) {
-      const text = formatExpenseConfirmation(updatedDraft);
-      const keyboard = buildExpenseConfirmationKeyboard();
+      const text = formatExpenseConfirmation(updatedDraft, members);
+      const keyboard = buildExpenseConfirmationKeyboard(updatedDraft, members);
       try {
         await ctx.editMessageText(text, { parse_mode: 'Markdown', reply_markup: keyboard });
       } catch {
@@ -398,13 +520,14 @@ export async function handleExpenseCallback(
       splitType: 'equal',
       splits: fullSplits,
       sharesMap: undefined,
+      cachedMembers: members,
       step: 'AWAITING_CONFIRMATION',
     });
 
     await ctx.answerCallbackQuery();
     if (updatedDraft) {
-      const text = formatExpenseConfirmation(updatedDraft);
-      const keyboard = buildExpenseConfirmationKeyboard();
+      const text = formatExpenseConfirmation(updatedDraft, members);
+      const keyboard = buildExpenseConfirmationKeyboard(updatedDraft, members);
       try {
         await ctx.editMessageText(text, { parse_mode: 'Markdown', reply_markup: keyboard });
       } catch {

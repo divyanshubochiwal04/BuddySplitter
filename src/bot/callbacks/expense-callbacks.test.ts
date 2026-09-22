@@ -352,4 +352,131 @@ describe('Expense Callbacks - Quick Add & Change Flow', () => {
     expect(equalDraft?.splitType).toBe('equal');
     expect(equalDraft?.splits).toHaveLength(2);
   });
+
+  describe('Single-Form In-Place Dashboard Toggles', () => {
+    function seedFormDraft() {
+      expenseStateManager.setState({
+        chatId,
+        userId,
+        groupId: 'g-1',
+        creatorUserId: 'u-dev',
+        step: 'AWAITING_CONFIRMATION',
+        description: 'Dinner',
+        totalAmount: 120000,
+        payerUserId: 'u-dev',
+        payerName: 'Dev',
+        participantUserIds: ['u-dev', 'u-rahul', 'u-aman'],
+        splitType: 'equal',
+        splits: [],
+        cachedMembers: [
+          { userId: 'u-dev', name: 'Dev' },
+          { userId: 'u-rahul', name: 'Rahul' },
+          { userId: 'u-aman', name: 'Aman' },
+        ],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    }
+
+    it('cycles payer in-place on exp:form_cycle_payer', async () => {
+      seedFormDraft();
+      const editMessageMock = vi.fn().mockResolvedValue(true);
+      const answerCallbackMock = vi.fn().mockResolvedValue(true);
+      const mockCtx = {
+        chat: { id: chatId },
+        from: { id: userId },
+        answerCallbackQuery: answerCallbackMock,
+        editMessageText: editMessageMock,
+      } as unknown as Context;
+
+      // Dev -> Rahul
+      await handleExpenseCallback(mockCtx, 'exp:form_cycle_payer', mockServices);
+      let draft = expenseStateManager.getState(chatId, userId);
+      expect(draft?.payerUserId).toBe('u-rahul');
+      expect(draft?.payerName).toBe('Rahul');
+
+      // Rahul -> Aman
+      await handleExpenseCallback(mockCtx, 'exp:form_cycle_payer', mockServices);
+      draft = expenseStateManager.getState(chatId, userId);
+      expect(draft?.payerUserId).toBe('u-aman');
+
+      // Aman -> Dev (wrap around)
+      await handleExpenseCallback(mockCtx, 'exp:form_cycle_payer', mockServices);
+      draft = expenseStateManager.getState(chatId, userId);
+      expect(draft?.payerUserId).toBe('u-dev');
+
+      expect(editMessageMock).toHaveBeenCalled();
+    });
+
+    it('toggles participant in-place and recalculates equal splits on exp:form_toggle_part', async () => {
+      seedFormDraft();
+      const editMessageMock = vi.fn().mockResolvedValue(true);
+      const answerCallbackMock = vi.fn().mockResolvedValue(true);
+      const mockCtx = {
+        chat: { id: chatId },
+        from: { id: userId },
+        answerCallbackQuery: answerCallbackMock,
+        editMessageText: editMessageMock,
+      } as unknown as Context;
+
+      // Toggle Aman off (from 3 participants to 2 participants: Dev & Rahul)
+      await handleExpenseCallback(mockCtx, 'exp:form_toggle_part:u-aman', mockServices);
+      let draft = expenseStateManager.getState(chatId, userId);
+      expect(draft?.participantUserIds).toEqual(['u-dev', 'u-rahul']);
+      expect(draft?.splits).toHaveLength(2);
+      expect(draft?.splits[0].amount).toBe(60000); // 1200 / 2 = 600
+
+      // Toggle Aman back on (back to 3 participants)
+      await handleExpenseCallback(mockCtx, 'exp:form_toggle_part:u-aman', mockServices);
+      draft = expenseStateManager.getState(chatId, userId);
+      expect(draft?.participantUserIds).toEqual(['u-dev', 'u-rahul', 'u-aman']);
+      expect(draft?.splits).toHaveLength(3);
+      expect(draft?.splits[0].amount).toBe(40000); // 1200 / 3 = 400
+    });
+
+    it('prevents deselecting the last participant', async () => {
+      seedFormDraft();
+      const draft = expenseStateManager.getState(chatId, userId)!;
+      draft.participantUserIds = ['u-dev'];
+      expenseStateManager.setState(draft);
+
+      const answerCallbackMock = vi.fn().mockResolvedValue(true);
+      const mockCtx = {
+        chat: { id: chatId },
+        from: { id: userId },
+        answerCallbackQuery: answerCallbackMock,
+        editMessageText: vi.fn(),
+      } as unknown as Context;
+
+      await handleExpenseCallback(mockCtx, 'exp:form_toggle_part:u-dev', mockServices);
+
+      expect(answerCallbackMock).toHaveBeenCalledWith(
+        expect.objectContaining({ show_alert: true, text: expect.stringContaining('At least one person') })
+      );
+      expect(expenseStateManager.getState(chatId, userId)?.participantUserIds).toEqual(['u-dev']);
+    });
+
+    it('selects all participants on exp:form_part_all', async () => {
+      seedFormDraft();
+      const draft = expenseStateManager.getState(chatId, userId)!;
+      draft.participantUserIds = ['u-dev'];
+      expenseStateManager.setState(draft);
+
+      const editMessageMock = vi.fn().mockResolvedValue(true);
+      const answerCallbackMock = vi.fn().mockResolvedValue(true);
+      const mockCtx = {
+        chat: { id: chatId },
+        from: { id: userId },
+        answerCallbackQuery: answerCallbackMock,
+        editMessageText: editMessageMock,
+      } as unknown as Context;
+
+      await handleExpenseCallback(mockCtx, 'exp:form_part_all', mockServices);
+
+      const updated = expenseStateManager.getState(chatId, userId);
+      expect(updated?.participantUserIds).toEqual(['u-dev', 'u-rahul', 'u-aman']);
+      expect(updated?.splits).toHaveLength(3);
+    });
+  });
 });
+
