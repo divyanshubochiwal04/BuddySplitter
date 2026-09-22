@@ -19,6 +19,7 @@ import {
 import { handleExpenseCallback } from './expense-callbacks';
 import { handleExpenseManagementCallback } from './expense-management-callbacks';
 import { handlePaymentCallback } from './payment-callbacks';
+import { handleRepayCallback } from './repay-callbacks';
 import { startQuickAdd } from '../../modules/expenses/expense-flow';
 import { logger } from '../../shared/logger';
 import { formatPaise } from '../../shared/currency';
@@ -64,6 +65,11 @@ export function createCallbackRouter(services: BotServices) {
 
       const expenseHandled = await handleExpenseCallback(ctx, data, services);
       if (expenseHandled) {
+        return;
+      }
+
+      const repayHandled = await handleRepayCallback(ctx, data, services);
+      if (repayHandled) {
         return;
       }
 

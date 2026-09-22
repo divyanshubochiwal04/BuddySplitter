@@ -14,6 +14,7 @@ import { createExpensesCommandHandler } from './expenses';
 import { handlePrivacy } from './privacy';
 import { createMyDataCommandHandler } from './my-data';
 import { createDeleteDataCommandHandler } from './delete-data';
+import { createRepayCommandHandler } from './repay';
 
 export function registerCommands(bot: Bot<Context>, services?: BotServices): void {
   if (services) {
@@ -23,6 +24,7 @@ export function registerCommands(bot: Bot<Context>, services?: BotServices): voi
     bot.command('balance', createBalanceCommandHandler(services));
     bot.command('summary', createSummaryCommandHandler(services));
     bot.command('settle', createSettleCommandHandler(services));
+    bot.command('repay', createRepayCommandHandler(services));
     bot.command('payments', createPaymentsCommandHandler(services));
     bot.command('expenses', createExpensesCommandHandler(services));
     bot.command('my_data', createMyDataCommandHandler(services));
@@ -33,6 +35,7 @@ export function registerCommands(bot: Bot<Context>, services?: BotServices): voi
     bot.command('balance', createComingSoonHandler('Personal Balance (/balance)'));
     bot.command('summary', createComingSoonHandler('Group Summary (/summary)'));
     bot.command('settle', createComingSoonHandler('Settlement Engine (/settle)'));
+    bot.command('repay', createComingSoonHandler('Debt Repayment (/repay)'));
     bot.command('payments', createComingSoonHandler('Payment History (/payments)'));
     bot.command('expenses', createComingSoonHandler('Expense History (/expenses)'));
     bot.command('my_data', createComingSoonHandler('My Data (/my_data)'));
@@ -59,4 +62,5 @@ export * from './coming-soon';
 export * from './privacy';
 export * from './my-data';
 export * from './delete-data';
+export * from './repay';
 

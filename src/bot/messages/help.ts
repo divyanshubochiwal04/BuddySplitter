@@ -9,6 +9,7 @@ Split group expenses and track settlements without spreadsheets.
 • /balance — See your balance & status
 • /summary — See group balances
 • /settle — See who owes whom & settle up
+• /repay <amount> — Repay debts with multi-select & auto-allocation
 • /payments — View repayment history
 • /members — View group members
 • /privacy — View privacy policy & data practices

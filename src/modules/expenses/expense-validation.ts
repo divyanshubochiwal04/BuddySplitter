@@ -142,8 +142,11 @@ export function parseExpenseInput(input: string): ExpenseParseResult {
   let descCandidate = text.substring(0, lastSpaceIndex).trim();
   const amountCandidate = text.substring(lastSpaceIndex + 1).trim();
 
-  // Strip trailing currency designators from description candidate if any (e.g. "Dinner ₹" -> "Dinner")
-  descCandidate = descCandidate.replace(/\s*(?:₹|rs\.?|inr)$/i, '').trim();
+  // Strip trailing currency designators or "for" from description candidate if any (e.g. "Dinner ₹" -> "Dinner", "Dinner for" -> "Dinner")
+  descCandidate = descCandidate
+    .replace(/\s*(?:₹|rs\.?|inr)$/i, '')
+    .replace(/\s+for$/i, '')
+    .trim();
 
   if (!descCandidate) {
     return {
@@ -169,6 +172,45 @@ export function parseExpenseInput(input: string): ExpenseParseResult {
 
   const numberPattern = /^\d+(\.\d{1,2})?$/;
   if (!numberPattern.test(cleanedAmount)) {
+    // Check if amount was provided at the beginning (e.g. "1200 Dinner", "500 Chai", "₹500 for lunch")
+    const firstSpaceIndex = text.indexOf(' ');
+    if (firstSpaceIndex !== -1) {
+      const firstCandidate = text.substring(0, firstSpaceIndex).trim();
+      const restCandidate = text.substring(firstSpaceIndex + 1).trim();
+
+      const cleanedFirst = firstCandidate
+        .replace(/[₹\s,]/g, '')
+        .replace(/^(rs|inr)\.?/i, '')
+        .trim();
+
+      if (numberPattern.test(cleanedFirst)) {
+        const numFirst = parseFloat(cleanedFirst);
+        if (!isNaN(numFirst) && numFirst > 0) {
+          const paiseFirst = toPaise(numFirst);
+          if (paiseFirst > 0) {
+            const descFirst = restCandidate
+              .replace(/^for\s+/i, '')
+              .replace(/\s*(?:₹|rs\.?|inr)$/i, '')
+              .trim();
+
+            if (descFirst && descFirst.length <= 100) {
+              return {
+                success: true,
+                data: {
+                  description: descFirst,
+                  amountMinorUnits: paiseFirst,
+                  totalAmount: paiseFirst,
+                },
+                description: descFirst,
+                totalAmount: paiseFirst,
+                amountMinorUnits: paiseFirst,
+              };
+            }
+          }
+        }
+      }
+    }
+
     return {
       success: false,
       errorType: 'INVALID_AMOUNT',

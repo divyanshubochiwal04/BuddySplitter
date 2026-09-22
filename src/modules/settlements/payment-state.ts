@@ -1,8 +1,11 @@
+import { RepayDebtItem } from './repay-calculator';
+
 export type PaymentFlowStep =
   | 'AWAITING_RECIPIENT'
   | 'AWAITING_AMOUNT_CHOICE'
   | 'AWAITING_CUSTOM_AMOUNT'
   | 'AWAITING_CONFIRMATION'
+  | 'AWAITING_REPAY_SELECTION'
   | 'SAVING';
 
 export interface PaymentDraft {
@@ -19,6 +22,10 @@ export interface PaymentDraft {
   step: PaymentFlowStep;
   createdAt: number;
   updatedAt: number;
+  // Fields for /repay multi-select allocation flow
+  repayTargetAmount?: number; // minor units (paise)
+  repayDebts?: RepayDebtItem[];
+  selectedRecipientIds?: string[];
 }
 
 const DRAFT_TTL_MS = 15 * 60 * 1000; // 15 minutes

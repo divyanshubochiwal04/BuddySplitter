@@ -175,6 +175,36 @@ describe('Expense Validation', () => {
       }
     });
 
+    it('parses amount-first syntax like "500 chai" and "1200 for Dinner"', () => {
+      const res1 = parseExpenseInput('/add 500 chai');
+      expect(res1.success).toBe(true);
+      if (res1.success) {
+        expect(res1.description).toBe('chai');
+        expect(res1.totalAmount).toBe(50000);
+      }
+
+      const res2 = parseQuickAddExpense('1200 for Dinner');
+      expect(res2.success).toBe(true);
+      if (res2.success) {
+        expect(res2.description).toBe('Dinner');
+        expect(res2.totalAmount).toBe(120000);
+      }
+
+      const res3 = parseExpenseInput('/add ₹250 auto');
+      expect(res3.success).toBe(true);
+      if (res3.success) {
+        expect(res3.description).toBe('auto');
+        expect(res3.totalAmount).toBe(25000);
+      }
+
+      const res4 = parseQuickAddExpense('Chai for 500');
+      expect(res4.success).toBe(true);
+      if (res4.success) {
+        expect(res4.description).toBe('Chai');
+        expect(res4.totalAmount).toBe(50000);
+      }
+    });
+
     it('detects malformed input for empty text', () => {
       const resEmpty = parseQuickAddExpense('');
       expect(resEmpty.success).toBe(false);
@@ -184,3 +214,4 @@ describe('Expense Validation', () => {
     });
   });
 });
+
